@@ -61,7 +61,7 @@ export default function HomeScreen() {
     >
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Image source={require("@/assets/images/icon.png")} style={styles.headerLogo} resizeMode="contain" />
+          <Image source={require("@/assets/images/logo.png")} style={styles.headerLogo} resizeMode="contain" />
           <View>
             <Text style={[styles.greeting, { color: C.textSecondary }]}>مرحباً</Text>
             <Text style={[styles.userName, { color: C.text }]}>{user.name}</Text>
