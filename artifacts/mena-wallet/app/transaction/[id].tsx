@@ -103,27 +103,38 @@ export default function TransactionDetailScreen() {
   };
 
   const handleDelete = () => {
+    const message = `هل تريد حذف قيمة ${transaction.senderName}؟ لا يمكن التراجع عن هذا الإجراء.`;
+
+    const performDelete = async () => {
+      setLoading(true);
+      try {
+        await deleteTransaction(transaction.id);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        router.back();
+      } catch (e: any) {
+        if (Platform.OS === "web") {
+          window.alert(e.message || "فشل الحذف");
+        } else {
+          Alert.alert("خطأ", e.message || "فشل الحذف");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`تأكيد الحذف\n\n${message}`)) {
+        performDelete();
+      }
+      return;
+    }
+
     Alert.alert(
       "تأكيد الحذف",
-      `هل تريد حذف قيمة ${transaction.senderName}؟ لا يمكن التراجع عن هذا الإجراء.`,
+      message,
       [
         { text: "إلغاء", style: "cancel" },
-        {
-          text: "حذف",
-          style: "destructive",
-          onPress: async () => {
-            setLoading(true);
-            try {
-              await deleteTransaction(transaction.id);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              router.back();
-            } catch (e: any) {
-              Alert.alert("خطأ", e.message || "فشل الحذف");
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
+        { text: "حذف", style: "destructive", onPress: performDelete },
       ]
     );
   };
