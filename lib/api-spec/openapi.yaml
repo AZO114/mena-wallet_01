@@ -1,0 +1,399 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Mena Wallet API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication
+  - name: transactions
+    description: Transaction management
+  - name: notifications
+    description: Notification management
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login with PIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /transactions:
+    get:
+      operationId: getTransactions
+      tags: [transactions]
+      summary: Get all transactions
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, received, all]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: minAmount
+          in: query
+          schema:
+            type: number
+        - name: maxAmount
+          in: query
+          schema:
+            type: number
+        - name: startDate
+          in: query
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+
+    post:
+      operationId: createTransaction
+      tags: [transactions]
+      summary: Create a new transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTransactionRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /transactions/{id}:
+    get:
+      operationId: getTransaction
+      tags: [transactions]
+      summary: Get transaction by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /transactions/{id}/confirm:
+    post:
+      operationId: confirmTransaction
+      tags: [transactions]
+      summary: Confirm receipt of a transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmTransactionRequest"
+      responses:
+        "200":
+          description: Confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: Get notifications for a user
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read for a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+              required: [userId]
+      responses:
+        "200":
+          description: All marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required: [success]
+
+  /reports/financial:
+    get:
+      operationId: getFinancialReport
+      tags: [transactions]
+      summary: Get financial report
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [week, month, year, all]
+      responses:
+        "200":
+          description: Financial report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinancialReport"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    LoginRequest:
+      type: object
+      properties:
+        pin:
+          type: string
+      required: [pin]
+
+    LoginResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [sender, receiver]
+        token:
+          type: string
+      required: [userId, name, role, token]
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+        senderName:
+          type: string
+        recipientName:
+          type: string
+        amount:
+          type: number
+        paidAmount:
+          type: number
+        status:
+          type: string
+          enum: [pending, received]
+        confirmedBy:
+          type: string
+          nullable: true
+        confirmedByName:
+          type: string
+          nullable: true
+        confirmedAt:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, senderName, recipientName, amount, paidAmount, status, createdAt, updatedAt]
+
+    CreateTransactionRequest:
+      type: object
+      properties:
+        senderName:
+          type: string
+        amount:
+          type: number
+        paidAmount:
+          type: number
+        notes:
+          type: string
+        createdByUserId:
+          type: string
+      required: [senderName, amount, paidAmount, createdByUserId]
+
+    ConfirmTransactionRequest:
+      type: object
+      properties:
+        confirmedByUserId:
+          type: string
+        confirmedByName:
+          type: string
+      required: [confirmedByUserId, confirmedByName]
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        transactionId:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, userId, transactionId, title, body, isRead, createdAt]
+
+    FinancialReport:
+      type: object
+      properties:
+        totalAmount:
+          type: number
+        totalPaid:
+          type: number
+        totalPending:
+          type: number
+        totalReceived:
+          type: number
+        pendingCount:
+          type: integer
+        receivedCount:
+          type: integer
+        transactionsByPeriod:
+          type: array
+          items:
+            type: object
+            properties:
+              period:
+                type: string
+              amount:
+                type: number
+              count:
+                type: integer
+            required: [period, amount, count]
+      required: [totalAmount, totalPaid, totalPending, totalReceived, pendingCount, receivedCount, transactionsByPeriod]

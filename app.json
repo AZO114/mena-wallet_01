@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "fdcc551b-38ce-4a5a-92e2-969c91b5f8d7"
+      }
+    },
+    "android": {
+      "package": "mena_express.com"
+    },
+    "ios": {
+      "bundleIdentifier": "com.azo.menaexpress",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}
