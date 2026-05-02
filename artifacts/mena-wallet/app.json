@@ -66,6 +66,14 @@
           "color": "#1D4ED8",
           "sounds": []
         }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "السماح لـ Mena Wallet بحفظ الصور في معرض الصور",
+          "savePhotosPermission": "السماح لـ Mena Wallet بحفظ الصور في معرض الصور",
+          "isAccessMediaLocationEnabled": true
+        }
       ]
     ],
     "experiments": {

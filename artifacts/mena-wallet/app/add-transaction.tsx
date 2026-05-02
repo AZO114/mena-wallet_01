@@ -28,15 +28,15 @@ type Mode = "new" | "supplement";
 async function pickAndCompressImage(): Promise<string | null> {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    allowsEditing: true,
-    quality: 0.7,
+    allowsEditing: false,
+    quality: 1,
   });
   if (result.canceled || !result.assets[0]) return null;
   const uri = result.assets[0].uri;
   const compressed = await ImageManipulator.manipulateAsync(
     uri,
-    [{ resize: { width: 800 } }],
-    { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+    [],
+    { compress: 1, format: ImageManipulator.SaveFormat.JPEG, base64: true }
   );
   return compressed.base64 ? `data:image/jpeg;base64,${compressed.base64}` : null;
 }

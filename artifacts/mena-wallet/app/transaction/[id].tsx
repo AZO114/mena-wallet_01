@@ -39,6 +39,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { ImageThumb } from "@/components/ImageViewer";
 
 function formatAmount(amount: number): string {
   return amount.toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
@@ -57,15 +58,15 @@ function formatTime(dateStr: string): string {
 async function pickAndCompressImage(): Promise<string | null> {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    allowsEditing: true,
-    quality: 0.7,
+    allowsEditing: false,
+    quality: 1,
   });
   if (result.canceled || !result.assets[0]) return null;
   const uri = result.assets[0].uri;
   const compressed = await ImageManipulator.manipulateAsync(
     uri,
-    [{ resize: { width: 800 } }],
-    { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+    [],
+    { compress: 1, format: ImageManipulator.SaveFormat.JPEG, base64: true }
   );
   return compressed.base64 ? `data:image/jpeg;base64,${compressed.base64}` : null;
 }
@@ -334,10 +335,10 @@ export default function TransactionDetailScreen() {
                   </View>
                   <Text style={[styles.infoLabel, { color: C.textSecondary }]}>{t("attachment")}</Text>
                 </View>
-                <Image
-                  source={{ uri: transaction.notesAttachment }}
+                <ImageThumb
+                  uri={transaction.notesAttachment}
                   style={styles.attachmentThumb}
-                  resizeMode="cover"
+                  title={t("attachment")}
                 />
               </View>
             )}
@@ -374,10 +375,10 @@ export default function TransactionDetailScreen() {
                     </View>
                     <Text style={[styles.infoLabel, { color: C.textSecondary }]}>{t("receiptAttachment")}</Text>
                   </View>
-                  <Image
-                    source={{ uri: transaction.confirmationAttachment }}
+                  <ImageThumb
+                    uri={transaction.confirmationAttachment}
                     style={styles.attachmentThumb}
-                    resizeMode="cover"
+                    title={t("receiptAttachment")}
                   />
                 </View>
               )}
