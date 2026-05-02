@@ -1,4 +1,5 @@
-import { BadgeDollarSign, CheckCircle, CircleX, Clock, Download, FileText, X } from "lucide-react-native";
+import { BadgeDollarSign, CheckCircle, CircleX, Clock, Download, FileText, TrendingUp, X } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -18,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
-import { useTheme } from "@/context/ThemeContext";
+import { useTheme, useThemeToggle } from "@/context/ThemeContext";
 import { useApp, FinancialReport } from "@/context/AppContext";
 
 const BASE_URL = process.env.EXPO_PUBLIC_DOMAIN
@@ -34,12 +35,14 @@ function formatAmount(amount: number): string {
 function monthLabel(period: string): string {
   const [year, month] = period.split("-");
   const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
-  return `${months[parseInt(month, 10) - 1]} ${year}`;
+  if (month) return `${months[parseInt(month, 10) - 1]}`;
+  return period;
 }
 
 export default function ReportsScreen() {
   const { user, getFinancialReport } = useApp();
   const C = useTheme();
+  const { isDark } = useThemeToggle();
   const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<Period>("month");
   const [report, setReport] = useState<FinancialReport | null>(null);
@@ -101,19 +104,20 @@ export default function ReportsScreen() {
       const totalAmount = data.reduce((s, t) => s + t.amount, 0);
       const totalPaid = data.reduce((s, t) => s + t.paidAmount, 0);
       const totalRemaining = data.reduce((s, t) => s + t.remaining, 0);
+      const payPct = totalAmount > 0 ? Math.round((totalPaid / totalAmount) * 100) : 0;
 
       const rows = data.map((t, i) => `
         <tr style="background:${i % 2 === 0 ? '#f9fafb' : '#ffffff'}">
-          <td>${i + 1}</td>
-          <td>${t.senderName}</td>
-          <td>${t.amount.toLocaleString("ar-LY")} د.ل</td>
-          <td>${t.paidAmount.toLocaleString("ar-LY")} د.ل</td>
-          <td>${t.remaining.toLocaleString("ar-LY")} د.ل</td>
-          <td><span style="color:${t.status === 'مستلمة' ? '#10B981' : '#F59E0B'}">${t.status}</span></td>
-          <td>${t.confirmedByName}</td>
-          <td>${t.createdAt}</td>
-          <td>${t.confirmedAt}</td>
-          <td>${t.notes}</td>
+          <td style="color:#64748b;font-size:11px">${i + 1}</td>
+          <td style="font-weight:600">${t.senderName}</td>
+          <td style="font-weight:700;color:#0f172a">${t.amount.toLocaleString("ar-LY")} د.ل</td>
+          <td style="color:#10B981;font-weight:600">${t.paidAmount.toLocaleString("ar-LY")} د.ل</td>
+          <td style="color:${t.remaining > 0 ? '#EF4444' : '#10B981'};font-weight:600">${t.remaining.toLocaleString("ar-LY")} د.ل</td>
+          <td><span style="background:${t.status === 'مستلمة' ? '#D1FAE5' : '#FEF3C7'};color:${t.status === 'مستلمة' ? '#10B981' : '#F59E0B'};padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700">${t.status}</span></td>
+          <td style="color:#64748b">${t.confirmedByName || '—'}</td>
+          <td style="color:#64748b;font-size:10px">${t.createdAt}</td>
+          <td style="color:#64748b;font-size:10px">${t.confirmedAt || '—'}</td>
+          <td style="color:#64748b;font-size:10px;font-style:italic">${t.notes || '—'}</td>
         </tr>`).join("");
 
       const dateRangeLabel = [
@@ -128,44 +132,72 @@ export default function ReportsScreen() {
   <meta charset="UTF-8" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Arial', sans-serif; direction: rtl; background: #fff; color: #111; padding: 20px; font-size: 11px; }
-    .header { text-align: center; margin-bottom: 24px; border-bottom: 3px solid #1A56DB; padding-bottom: 16px; }
-    .header h1 { font-size: 26px; color: #1A56DB; margin-bottom: 4px; }
-    .header p { color: #555; font-size: 12px; }
-    .period { text-align: center; color: #333; margin-bottom: 16px; font-size: 13px; }
-    .summary { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; }
-    .summary-box { background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 10px; padding: 12px 20px; text-align: center; min-width: 140px; }
-    .summary-box .label { font-size: 11px; color: #555; margin-bottom: 4px; }
-    .summary-box .value { font-size: 16px; font-weight: bold; color: #1A56DB; }
-    table { width: 100%; border-collapse: collapse; font-size: 10px; }
-    th { background: #1A56DB; color: #fff; padding: 8px 6px; text-align: center; font-weight: bold; }
-    td { padding: 7px 6px; text-align: center; border-bottom: 1px solid #e5e7eb; }
-    .footer { text-align: center; margin-top: 24px; color: #888; font-size: 10px; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+    body { font-family: 'Arial', sans-serif; direction: rtl; background: #fff; color: #0f172a; padding: 24px; font-size: 11px; }
+    .header { text-align: center; margin-bottom: 28px; }
+    .header-inner { background: linear-gradient(135deg, #1A56DB, #1342B8); border-radius: 16px; padding: 20px 28px; color: #fff; }
+    .header h1 { font-size: 28px; margin-bottom: 4px; letter-spacing: -0.5px; }
+    .header p { opacity: 0.8; font-size: 13px; }
+    .period { text-align: center; color: #64748b; margin-bottom: 20px; font-size: 13px; background: #f1f5f9; padding: 8px 16px; border-radius: 10px; display: inline-block; }
+    .period-wrap { text-align: center; margin-bottom: 20px; }
+    .summary { display: flex; gap: 12px; margin-bottom: 24px; justify-content: center; flex-wrap: wrap; }
+    .summary-box { border-radius: 12px; padding: 14px 20px; text-align: center; min-width: 130px; border: 1px solid; }
+    .summary-box.total { background: #EFF6FF; border-color: #BFDBFE; }
+    .summary-box.paid { background: #ECFDF5; border-color: #A7F3D0; }
+    .summary-box.remaining { background: #FEF2F2; border-color: #FECACA; }
+    .summary-box.count { background: #F5F3FF; border-color: #DDD6FE; }
+    .summary-box .label { font-size: 10px; color: #64748b; margin-bottom: 5px; font-weight: 600; }
+    .summary-box .value { font-size: 17px; font-weight: 800; }
+    .summary-box.total .value { color: #1A56DB; }
+    .summary-box.paid .value { color: #10B981; }
+    .summary-box.remaining .value { color: #EF4444; }
+    .summary-box.count .value { color: #7C3AED; }
+    .progress-bar-wrap { margin-bottom: 20px; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; margin-bottom: 6px; }
+    .progress-track { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+    .progress-fill { height: 8px; background: linear-gradient(90deg, #1A56DB, #10B981); border-radius: 4px; width: ${payPct}%; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: linear-gradient(135deg, #1A56DB, #1342B8); color: #fff; padding: 9px 7px; text-align: center; font-weight: 700; font-size: 10px; }
+    th:first-child { border-radius: 0 8px 0 0; }
+    th:last-child { border-radius: 8px 0 0 0; }
+    td { padding: 8px 7px; text-align: center; border-bottom: 1px solid #f1f5f9; }
+    .footer { text-align: center; margin-top: 28px; color: #94a3b8; font-size: 10px; border-top: 1px solid #e2e8f0; padding-top: 14px; }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>Mena Wallet</h1>
-    <p>تقرير المعاملات المالية</p>
-    <p>تم تطويره بواسطة المهندس معتز الورفلي</p>
-  </div>
-  <div class="period">الفترة: ${dateRangeLabel || "جميع المعاملات"}</div>
-  <div class="summary">
-    <div class="summary-box">
-      <div class="label">إجمالي المعاملات</div>
-      <div class="value">${data.length}</div>
+    <div class="header-inner">
+      <h1>Mena Wallet</h1>
+      <p>تقرير المعاملات المالية</p>
     </div>
-    <div class="summary-box">
+  </div>
+  <div class="period-wrap">
+    <span class="period">الفترة: ${dateRangeLabel || "جميع المعاملات"}</span>
+  </div>
+  <div class="summary">
+    <div class="summary-box total">
       <div class="label">إجمالي القيم</div>
       <div class="value">${totalAmount.toLocaleString("ar-LY")} د.ل</div>
     </div>
-    <div class="summary-box">
+    <div class="summary-box paid">
       <div class="label">إجمالي المسدد</div>
       <div class="value">${totalPaid.toLocaleString("ar-LY")} د.ل</div>
     </div>
-    <div class="summary-box">
+    <div class="summary-box remaining">
       <div class="label">إجمالي المتبقي</div>
       <div class="value">${totalRemaining.toLocaleString("ar-LY")} د.ل</div>
+    </div>
+    <div class="summary-box count">
+      <div class="label">عدد المعاملات</div>
+      <div class="value">${data.length}</div>
+    </div>
+  </div>
+  <div class="progress-bar-wrap">
+    <div class="progress-label">
+      <span>نسبة السداد</span>
+      <span>${payPct}%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill"></div>
     </div>
   </div>
   <table>
@@ -177,7 +209,7 @@ export default function ReportsScreen() {
         <th>المسدد</th>
         <th>المتبقي</th>
         <th>الحالة</th>
-        <th>تم الاستلام بواسطة</th>
+        <th>استلم بواسطة</th>
         <th>تاريخ الإنشاء</th>
         <th>تاريخ الاستلام</th>
         <th>الملاحظات</th>
@@ -189,7 +221,7 @@ export default function ReportsScreen() {
   </table>
   <div class="footer">
     تم إنشاء هذا التقرير بتاريخ: ${new Date().toLocaleDateString("ar-LY", { year: "numeric", month: "long", day: "numeric" })}
-    &nbsp;|&nbsp; Mena Wallet © ${new Date().getFullYear()}
+    &nbsp;·&nbsp; Mena Wallet © ${new Date().getFullYear()}
   </div>
 </body>
 </html>`;
@@ -229,6 +261,10 @@ export default function ReportsScreen() {
     ? Math.max(...report.transactionsByPeriod.map((p) => p.amount), 1)
     : 1;
 
+  const totalTx = (report?.pendingCount ?? 0) + (report?.receivedCount ?? 0);
+  const payRatio = report && report.totalAmount > 0 ? report.totalPaid / report.totalAmount : 0;
+  const receiveRatio = totalTx > 0 ? (report?.receivedCount ?? 0) / totalTx : 0;
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: C.background }]}
@@ -245,14 +281,19 @@ export default function ReportsScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.headerRow}>
-        <Text style={[styles.headerTitle, { color: C.text }]}>التقرير المالي</Text>
+        <View style={styles.headerLeft}>
+          <View style={[styles.headerIconBg, { backgroundColor: isDark ? "#1e3a8a33" : "#EEF2FF" }]}>
+            <TrendingUp size={20} color={C.tint} />
+          </View>
+          <Text style={[styles.headerTitle, { color: C.text }]}>التقارير</Text>
+        </View>
         {user?.role === "sender" && (
           <Pressable
-            style={[styles.pdfBtn, { backgroundColor: C.tint }]}
+            style={[styles.pdfBtn, { backgroundColor: C.tint, shadowColor: C.tint }]}
             onPress={() => setShowPdfModal(true)}
           >
-            <FileText size={16} color="#fff" />
-            <Text style={styles.pdfBtnText}>PDF</Text>
+            <FileText size={15} color="#fff" />
+            <Text style={styles.pdfBtnText}>تصدير PDF</Text>
           </Pressable>
         )}
       </View>
@@ -282,56 +323,121 @@ export default function ReportsScreen() {
         <ActivityIndicator style={{ marginTop: 60 }} color={C.tint} />
       ) : report ? (
         <>
-          <View style={[styles.mainCard, { backgroundColor: C.tint, shadowColor: C.tint }]}>
+          <LinearGradient
+            colors={isDark ? ["#1e3a8a", "#0f2560", "#0a1830"] : ["#1A56DB", "#1342B8", "#0e2d8c"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.mainCard}
+          >
             <Text style={styles.mainCardLabel}>إجمالي القيم</Text>
             <Text style={styles.mainCardAmount}>{formatAmount(report.totalAmount)}</Text>
             <Text style={styles.mainCardCurrency}>دينار ليبي</Text>
-          </View>
+            <View style={styles.mainCardProgress}>
+              <View style={styles.mainCardProgressRow}>
+                <Text style={styles.mainCardProgressLabel}>نسبة السداد: {Math.round(payRatio * 100)}%</Text>
+                <Text style={styles.mainCardProgressLabel}>{totalTx} معاملة</Text>
+              </View>
+              <View style={styles.mainCardProgressTrack}>
+                <View style={[styles.mainCardProgressFill, { width: `${Math.round(payRatio * 100)}%` as any }]} />
+              </View>
+            </View>
+          </LinearGradient>
 
           <View style={styles.statsGrid}>
             <View style={[styles.statBox, { backgroundColor: C.isDark ? "#2D1B0E" : "#FFFBEB" }]}>
-              <Clock size={20} color={C.warning} />
+              <View style={[styles.statIconBg, { backgroundColor: C.isDark ? "#78350F44" : "#FEF3C7" }]}>
+                <Clock size={18} color={C.warning} />
+              </View>
               <Text style={[styles.statBoxLabel, { color: C.textSecondary }]}>معلقة</Text>
               <Text style={[styles.statBoxAmount, { color: C.warning }]}>{formatAmount(report.totalPending)}</Text>
-              <Text style={[styles.statBoxCurrency, { color: C.textSecondary }]}>د.ل</Text>
-              <Text style={[styles.statBoxCount, { color: C.textMuted }]}>{report.pendingCount} معاملة</Text>
+              <Text style={[styles.statBoxSub, { color: C.textMuted }]}>{report.pendingCount} معاملة</Text>
             </View>
 
             <View style={[styles.statBox, { backgroundColor: C.isDark ? "#052E16" : "#ECFDF5" }]}>
-              <CheckCircle size={20} color={C.success} />
+              <View style={[styles.statIconBg, { backgroundColor: C.isDark ? "#064E3B44" : "#D1FAE5" }]}>
+                <CheckCircle size={18} color={C.success} />
+              </View>
               <Text style={[styles.statBoxLabel, { color: C.textSecondary }]}>مستلمة</Text>
               <Text style={[styles.statBoxAmount, { color: C.success }]}>{formatAmount(report.totalReceived)}</Text>
-              <Text style={[styles.statBoxCurrency, { color: C.textSecondary }]}>د.ل</Text>
-              <Text style={[styles.statBoxCount, { color: C.textMuted }]}>{report.receivedCount} معاملة</Text>
+              <Text style={[styles.statBoxSub, { color: C.textMuted }]}>{report.receivedCount} معاملة</Text>
             </View>
 
             <View style={[styles.statBox, { backgroundColor: C.isDark ? "#1e3a8a22" : "#EFF6FF" }]}>
-              <BadgeDollarSign size={20} color={C.tint} />
+              <View style={[styles.statIconBg, { backgroundColor: C.isDark ? "#1e3a8a44" : "#DBEAFE" }]}>
+                <BadgeDollarSign size={18} color={C.tint} />
+              </View>
               <Text style={[styles.statBoxLabel, { color: C.textSecondary }]}>المسدد</Text>
               <Text style={[styles.statBoxAmount, { color: C.tint }]}>{formatAmount(report.totalPaid)}</Text>
-              <Text style={[styles.statBoxCurrency, { color: C.textSecondary }]}>د.ل</Text>
-              <Text style={[styles.statBoxCount, { color: C.textMuted }]}>إجمالي المدفوع</Text>
+              <Text style={[styles.statBoxSub, { color: C.textMuted }]}>مجموع المدفوع</Text>
             </View>
 
             <View style={[styles.statBox, { backgroundColor: C.isDark ? "#450A0A" : "#FFF1F2" }]}>
-              <CircleX size={20} color={C.danger} />
+              <View style={[styles.statIconBg, { backgroundColor: C.isDark ? "#7F1D1D44" : "#FECDD3" }]}>
+                <CircleX size={18} color={C.danger} />
+              </View>
               <Text style={[styles.statBoxLabel, { color: C.textSecondary }]}>المتبقي</Text>
               <Text style={[styles.statBoxAmount, { color: C.danger }]}>{formatAmount(report.totalAmount - report.totalPaid)}</Text>
-              <Text style={[styles.statBoxCurrency, { color: C.textSecondary }]}>د.ل</Text>
-              <Text style={[styles.statBoxCount, { color: C.textMuted }]}>غير مسدد</Text>
+              <Text style={[styles.statBoxSub, { color: C.textMuted }]}>غير مسدد</Text>
+            </View>
+          </View>
+
+          <View style={[styles.summaryCard, { backgroundColor: C.surface }]}>
+            <Text style={[styles.summaryTitle, { color: C.text }]}>ملخص الأداء</Text>
+            <View style={styles.summaryItem}>
+              <View style={styles.summaryItemTop}>
+                <Text style={[styles.summaryLabel, { color: C.textSecondary }]}>نسبة السداد</Text>
+                <Text style={[styles.summaryPct, { color: C.tint }]}>{Math.round(payRatio * 100)}%</Text>
+              </View>
+              <View style={[styles.summaryTrack, { backgroundColor: C.surfaceSecondary }]}>
+                <View style={[styles.summaryFill, { width: `${Math.round(payRatio * 100)}%` as any, backgroundColor: C.tint }]} />
+              </View>
+            </View>
+            <View style={[styles.summaryDivider, { backgroundColor: C.border }]} />
+            <View style={styles.summaryItem}>
+              <View style={styles.summaryItemTop}>
+                <Text style={[styles.summaryLabel, { color: C.textSecondary }]}>نسبة الاستلام</Text>
+                <Text style={[styles.summaryPct, { color: C.success }]}>{Math.round(receiveRatio * 100)}%</Text>
+              </View>
+              <View style={[styles.summaryTrack, { backgroundColor: C.surfaceSecondary }]}>
+                <View style={[styles.summaryFill, { width: `${Math.round(receiveRatio * 100)}%` as any, backgroundColor: C.success }]} />
+              </View>
+            </View>
+            <View style={[styles.summaryDivider, { backgroundColor: C.border }]} />
+            <View style={styles.summaryStatsRow}>
+              <View style={styles.summaryStat}>
+                <Text style={[styles.summaryStatValue, { color: C.text }]}>{totalTx}</Text>
+                <Text style={[styles.summaryStatLabel, { color: C.textMuted }]}>إجمالي</Text>
+              </View>
+              <View style={styles.summaryStat}>
+                <Text style={[styles.summaryStatValue, { color: C.warning }]}>{report.pendingCount}</Text>
+                <Text style={[styles.summaryStatLabel, { color: C.textMuted }]}>معلقة</Text>
+              </View>
+              <View style={styles.summaryStat}>
+                <Text style={[styles.summaryStatValue, { color: C.success }]}>{report.receivedCount}</Text>
+                <Text style={[styles.summaryStatLabel, { color: C.textMuted }]}>مستلمة</Text>
+              </View>
             </View>
           </View>
 
           {report.transactionsByPeriod.length > 0 && (
             <View style={[styles.chartCard, { backgroundColor: C.surface }]}>
-              <Text style={[styles.chartTitle, { color: C.text }]}>المعاملات بالفترة</Text>
+              <Text style={[styles.chartTitle, { color: C.text }]}>المعاملات بالفترة الزمنية</Text>
               <View style={styles.chart}>
                 {report.transactionsByPeriod.map((item, idx) => {
-                  const barHeight = maxBarAmount > 0 ? (item.amount / maxBarAmount) * 120 : 4;
+                  const barH = maxBarAmount > 0 ? (item.amount / maxBarAmount) * 110 : 4;
+                  const isMax = item.amount === maxBarAmount;
                   return (
                     <View key={idx} style={styles.barContainer}>
-                      <Text style={[styles.barAmount, { color: C.textSecondary }]}>{item.count}</Text>
-                      <View style={[styles.bar, { height: Math.max(barHeight, 4), backgroundColor: C.tint }]} />
+                      <Text style={[styles.barCount, { color: isMax ? C.tint : C.textMuted }]}>{item.count}</Text>
+                      <View
+                        style={[
+                          styles.bar,
+                          {
+                            height: Math.max(barH, 6),
+                            backgroundColor: isMax ? C.tint : C.isDark ? "#1e3a8a" : "#BFDBFE",
+                          },
+                        ]}
+                      />
                       <Text style={[styles.barLabel, { color: C.textSecondary }]} numberOfLines={2}>
                         {monthLabel(item.period)}
                       </Text>
@@ -341,30 +447,6 @@ export default function ReportsScreen() {
               </View>
             </View>
           )}
-
-          <View style={[styles.summaryCard, { backgroundColor: C.surface }]}>
-            <Text style={[styles.summaryTitle, { color: C.text }]}>ملخص</Text>
-            <View style={[styles.summaryRow, { borderBottomColor: C.border }]}>
-              <Text style={[styles.summaryLabel, { color: C.textSecondary }]}>إجمالي المعاملات</Text>
-              <Text style={[styles.summaryValue, { color: C.text }]}>{report.pendingCount + report.receivedCount}</Text>
-            </View>
-            <View style={[styles.summaryRow, { borderBottomColor: C.border }]}>
-              <Text style={[styles.summaryLabel, { color: C.textSecondary }]}>نسبة الاستلام</Text>
-              <Text style={[styles.summaryValue, { color: C.text }]}>
-                {report.pendingCount + report.receivedCount > 0
-                  ? Math.round((report.receivedCount / (report.pendingCount + report.receivedCount)) * 100)
-                  : 0}%
-              </Text>
-            </View>
-            <View style={[styles.summaryRow, { borderBottomColor: C.border }]}>
-              <Text style={[styles.summaryLabel, { color: C.textSecondary }]}>نسبة السداد</Text>
-              <Text style={[styles.summaryValue, { color: C.text }]}>
-                {report.totalAmount > 0
-                  ? Math.round((report.totalPaid / report.totalAmount) * 100)
-                  : 0}%
-              </Text>
-            </View>
-          </View>
         </>
       ) : null}
 
@@ -376,24 +458,26 @@ export default function ReportsScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: C.surface }]}>
+            <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleRow}>
-                <Download size={20} color={C.tint} />
-                <Text style={[styles.modalTitle, { color: C.text }]}>تصدير PDF</Text>
+                <View style={[styles.modalIconBg, { backgroundColor: C.isDark ? "#1e3a8a33" : "#EEF2FF" }]}>
+                  <Download size={20} color={C.tint} />
+                </View>
+                <View>
+                  <Text style={[styles.modalTitle, { color: C.text }]}>تصدير PDF</Text>
+                  <Text style={[styles.modalSubtitle, { color: C.textSecondary }]}>حدد الفترة الزمنية للتقرير</Text>
+                </View>
               </View>
               <Pressable onPress={() => setShowPdfModal(false)} style={[styles.closeBtn, { backgroundColor: C.surfaceSecondary }]}>
                 <X size={18} color={C.text} />
               </Pressable>
             </View>
 
-            <Text style={[styles.modalSubtitle, { color: C.textSecondary }]}>
-              حدد الفترة الزمنية لتصدير المعاملات (اتركها فارغة للكل)
-            </Text>
-
             <View style={styles.dateField}>
               <Text style={[styles.dateLabel, { color: C.text }]}>تاريخ البداية</Text>
               <TextInput
-                style={[styles.dateInput, { color: C.text, borderColor: C.border, backgroundColor: C.surfaceSecondary }]}
+                style={[styles.dateInput, { color: C.text, borderColor: pdfStartDate ? C.tint : C.border, backgroundColor: C.surfaceSecondary }]}
                 value={pdfStartDate}
                 onChangeText={setPdfStartDate}
                 placeholder="مثال: 2025-01-01"
@@ -405,7 +489,7 @@ export default function ReportsScreen() {
             <View style={styles.dateField}>
               <Text style={[styles.dateLabel, { color: C.text }]}>تاريخ النهاية</Text>
               <TextInput
-                style={[styles.dateInput, { color: C.text, borderColor: C.border, backgroundColor: C.surfaceSecondary }]}
+                style={[styles.dateInput, { color: C.text, borderColor: pdfEndDate ? C.tint : C.border, backgroundColor: C.surfaceSecondary }]}
                 value={pdfEndDate}
                 onChangeText={setPdfEndDate}
                 placeholder="مثال: 2025-12-31"
@@ -415,7 +499,7 @@ export default function ReportsScreen() {
             </View>
 
             <Pressable
-              style={[styles.exportBtn, { backgroundColor: C.tint }, pdfLoading && { opacity: 0.7 }]}
+              style={[styles.exportBtn, { backgroundColor: C.tint, shadowColor: C.tint }, pdfLoading && { opacity: 0.7 }]}
               onPress={handleExportPdf}
               disabled={pdfLoading}
             >
@@ -437,54 +521,85 @@ export default function ReportsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  contentContainer: { paddingHorizontal: 20, gap: 20 },
+  contentContainer: { paddingHorizontal: 16, gap: 16 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerIconBg: { width: 42, height: 42, borderRadius: 21, justifyContent: "center", alignItems: "center" },
+  headerTitle: { fontSize: 22, fontFamily: "Inter_700Bold" },
   pdfBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 14,
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
   },
   pdfBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
   periodSelector: { flexDirection: "row", borderRadius: 14, padding: 4, gap: 4 },
-  periodBtn: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 10 },
+  periodBtn: { flex: 1, paddingVertical: 9, alignItems: "center", borderRadius: 10 },
   periodBtnActive: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
   periodBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  mainCard: { borderRadius: 24, padding: 28, alignItems: "center", gap: 4, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8 },
-  mainCardLabel: { fontSize: 14, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.8)" },
-  mainCardAmount: { fontSize: 44, fontFamily: "Inter_700Bold", color: "#fff" },
-  mainCardCurrency: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)" },
+  mainCard: {
+    borderRadius: 24, padding: 22,
+    shadowColor: "#1A56DB", shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
+  },
+  mainCardLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.75)", marginBottom: 4 },
+  mainCardAmount: { fontSize: 38, fontFamily: "Inter_700Bold", color: "#fff" },
+  mainCardCurrency: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)", marginTop: -2, marginBottom: 14 },
+  mainCardProgress: { gap: 6 },
+  mainCardProgressRow: { flexDirection: "row", justifyContent: "space-between" },
+  mainCardProgressLabel: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.7)" },
+  mainCardProgressTrack: { height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.2)", overflow: "hidden" },
+  mainCardProgressFill: { height: "100%", borderRadius: 3, backgroundColor: "rgba(255,255,255,0.9)" },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  statBox: { width: "47%", borderRadius: 18, padding: 16, gap: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  statBoxLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 4 },
-  statBoxAmount: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  statBoxCurrency: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  statBoxCount: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  chartCard: { borderRadius: 20, padding: 20, gap: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  chartTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  chart: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-around", height: 160 },
-  barContainer: { alignItems: "center", gap: 4, flex: 1 },
-  barAmount: { fontSize: 10, fontFamily: "Inter_500Medium" },
-  bar: { width: 28, borderRadius: 6, minHeight: 4 },
-  barLabel: { fontSize: 9, fontFamily: "Inter_400Regular", textAlign: "center" },
-  summaryCard: { borderRadius: 20, padding: 20, gap: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  summaryTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1 },
+  statBox: {
+    width: "47%", borderRadius: 18, padding: 14, gap: 5,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
+  },
+  statIconBg: { width: 36, height: 36, borderRadius: 18, justifyContent: "center", alignItems: "center", marginBottom: 2 },
+  statBoxLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  statBoxAmount: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  statBoxSub: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  summaryCard: {
+    borderRadius: 20, padding: 18, gap: 12,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  summaryTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  summaryItem: { gap: 8 },
+  summaryItemTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   summaryLabel: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  summaryValue: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, gap: 20 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  modalTitleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  summaryPct: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  summaryTrack: { height: 7, borderRadius: 4, overflow: "hidden" },
+  summaryFill: { height: "100%", borderRadius: 4 },
+  summaryDivider: { height: 1 },
+  summaryStatsRow: { flexDirection: "row", justifyContent: "space-around", paddingTop: 4 },
+  summaryStat: { alignItems: "center", gap: 4 },
+  summaryStatValue: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  summaryStatLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  chartCard: {
+    borderRadius: 20, padding: 18, gap: 14,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  chartTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  chart: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-around", height: 150 },
+  barContainer: { alignItems: "center", gap: 5, flex: 1 },
+  barCount: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  bar: { width: "55%", borderRadius: 6, minHeight: 6, maxWidth: 36 },
+  barLabel: { fontSize: 10, fontFamily: "Inter_400Regular", textAlign: "center" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
+  modalCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 18 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#CBD5E1", alignSelf: "center", marginBottom: 4 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  modalTitleRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  modalIconBg: { width: 44, height: 44, borderRadius: 22, justifyContent: "center", alignItems: "center" },
+  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  modalSubtitle: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   closeBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: "center", alignItems: "center" },
-  modalSubtitle: { fontSize: 13, fontFamily: "Inter_400Regular" },
   dateField: { gap: 8 },
   dateLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   dateInput: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular" },
   exportBtn: {
-    borderRadius: 14, paddingVertical: 16, flexDirection: "row",
+    borderRadius: 16, paddingVertical: 16, flexDirection: "row",
     alignItems: "center", justifyContent: "center", gap: 10,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4,
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 5,
   },
   exportBtnText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
 });

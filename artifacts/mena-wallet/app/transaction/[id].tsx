@@ -12,6 +12,7 @@ import {
   User,
   Users,
 } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -65,7 +66,7 @@ export default function TransactionDetailScreen() {
 
   useEffect(() => {
     if (!user) { router.replace("/"); return; }
-    Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+    Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start();
   }, [user]);
 
   if (!user) return null;
@@ -86,6 +87,8 @@ export default function TransactionDetailScreen() {
   const isReceiver = user.role === "receiver";
   const canEdit = isSender && isPending;
   const canConfirm = isReceiver && isPending;
+  const paidRatio = transaction.amount > 0 ? transaction.paidAmount / transaction.amount : 0;
+  const remaining = transaction.amount - transaction.paidAmount;
 
   const handleConfirm = async () => {
     setLoading(true);
@@ -174,9 +177,7 @@ export default function TransactionDetailScreen() {
           {canEdit && (
             <Pressable
               style={[styles.headerIconBtn, { backgroundColor: C.isDark ? "#1e3a8a33" : "#EEF2FF" }]}
-              onPress={() =>
-                router.push({ pathname: "/edit-transaction", params: { id: transaction.id } })
-              }
+              onPress={() => router.push({ pathname: "/edit-transaction", params: { id: transaction.id } })}
             >
               <Edit2 size={20} color={C.tint} />
             </Pressable>
@@ -202,31 +203,58 @@ export default function TransactionDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Animated.View style={[styles.animatedContent, { opacity: fadeAnim }]}>
-          <View
-            style={[
-              styles.heroCard,
-              {
-                backgroundColor: isPending
-                  ? C.isDark ? "#2D1B0E" : "#FFFBEB"
-                  : C.isDark ? "#052E16" : "#ECFDF5",
-              },
-            ]}
+          <LinearGradient
+            colors={
+              isPending
+                ? (C.isDark ? ["#2D1B0E", "#3D2408"] : ["#FFFBEB", "#FEF3C7"])
+                : (C.isDark ? ["#052E16", "#064E3B"] : ["#ECFDF5", "#D1FAE5"])
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
           >
-            <View style={styles.heroIcon}>
+            <View style={[styles.heroIconBg, { backgroundColor: isPending ? C.pendingBg : C.receivedBg }]}>
               {isPending
-                ? <Clock size={36} color={C.warning} />
-                : <CheckCircle size={36} color={C.success} />}
+                ? <Clock size={32} color={C.warning} />
+                : <CheckCircle size={32} color={C.success} />}
             </View>
             <Text style={[styles.heroAmount, { color: isPending ? C.warning : C.success }]}>
               {formatAmount(transaction.amount)}{" "}
-              <Text style={styles.heroCurrency}>د.ل</Text>
+              <Text style={[styles.heroCurrency, { color: isPending ? C.warning : C.success }]}>د.ل</Text>
             </Text>
-            <View style={[styles.heroStatus, { backgroundColor: isPending ? C.pendingBg : C.receivedBg }]}>
+            <View style={[styles.heroStatusBadge, { backgroundColor: isPending ? C.pendingBg : C.receivedBg }]}>
               <Text style={[styles.heroStatusText, { color: isPending ? C.warning : C.success }]}>
-                {isPending ? "معلقة" : "مستلمة"}
+                {isPending ? "● معلقة" : "● مستلمة"}
               </Text>
             </View>
-          </View>
+
+            {transaction.paidAmount > 0 && (
+              <View style={styles.heroPaidSection}>
+                <View style={styles.heroPaidRow}>
+                  <View style={styles.heroPaidStat}>
+                    <Text style={[styles.heroPaidValue, { color: C.success }]}>{formatAmount(transaction.paidAmount)}</Text>
+                    <Text style={[styles.heroPaidLabel, { color: C.textSecondary }]}>المسدد</Text>
+                  </View>
+                  <View style={[styles.heroPaidSep, { backgroundColor: C.border }]} />
+                  <View style={styles.heroPaidStat}>
+                    <Text style={[styles.heroPaidValue, { color: remaining > 0 ? C.danger : C.success }]}>{formatAmount(remaining)}</Text>
+                    <Text style={[styles.heroPaidLabel, { color: C.textSecondary }]}>المتبقي</Text>
+                  </View>
+                  <View style={[styles.heroPaidSep, { backgroundColor: C.border }]} />
+                  <View style={styles.heroPaidStat}>
+                    <Text style={[styles.heroPaidValue, { color: C.tint }]}>{Math.round(paidRatio * 100)}%</Text>
+                    <Text style={[styles.heroPaidLabel, { color: C.textSecondary }]}>نسبة السداد</Text>
+                  </View>
+                </View>
+                <View style={[styles.heroProgressTrack, { backgroundColor: C.border }]}>
+                  <View style={[styles.heroProgressFill, {
+                    width: `${Math.min(Math.round(paidRatio * 100), 100)}%` as any,
+                    backgroundColor: paidRatio >= 1 ? C.success : C.tint,
+                  }]} />
+                </View>
+              </View>
+            )}
+          </LinearGradient>
 
           <View style={[styles.detailsCard, { backgroundColor: C.surface }]}>
             <Text style={[styles.sectionTitle, { color: C.text }]}>تفاصيل المعاملة</Text>
@@ -241,13 +269,13 @@ export default function TransactionDetailScreen() {
             <InfoRow
               icon={<BadgeDollarSign size={16} color={C.danger} />}
               label="المتبقي"
-              value={`${formatAmount(transaction.amount - transaction.paidAmount)} د.ل`}
-              valueColor={C.danger}
+              value={`${formatAmount(remaining)} د.ل`}
+              valueColor={remaining > 0 ? C.danger : C.success}
             />
             <InfoRow
               icon={<CalendarDays size={16} color={C.textSecondary} />}
               label="تاريخ الإضافة"
-              value={`${formatDate(transaction.createdAt)} - ${formatTime(transaction.createdAt)}`}
+              value={`${formatDate(transaction.createdAt)} · ${formatTime(transaction.createdAt)}`}
             />
             {transaction.notes && (
               <InfoRow
@@ -271,7 +299,7 @@ export default function TransactionDetailScreen() {
                 <InfoRow
                   icon={<CalendarDays size={16} color={C.textSecondary} />}
                   label="وقت الاستلام"
-                  value={`${formatDate(transaction.confirmedAt)} - ${formatTime(transaction.confirmedAt)}`}
+                  value={`${formatDate(transaction.confirmedAt)} · ${formatTime(transaction.confirmedAt)}`}
                 />
               )}
               {transaction.confirmationNotes && (
@@ -319,26 +347,24 @@ export default function TransactionDetailScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: C.surface }]}>
+            <View style={styles.modalHandle} />
+            <View style={[styles.modalIconBg, { backgroundColor: C.isDark ? "#064E3B33" : "#ECFDF5" }]}>
+              <CheckCircle size={28} color={C.success} />
+            </View>
             <Text style={[styles.modalTitle, { color: C.text }]}>تأكيد استلام القيمة</Text>
-            <Text style={[styles.modalSubtitle, { color: C.textSecondary }]}>
-              تأكيد استلام{" "}
-              <Text style={[styles.modalHighlight, { color: C.tint }]}>{transaction.senderName}</Text>
-              {" "}بمبلغ{" "}
-              <Text style={[styles.modalHighlight, { color: C.success }]}>
-                {formatAmount(transaction.amount)} د.ل
+            <View style={[styles.modalAmountBox, { backgroundColor: C.isDark ? "#064E3B22" : "#F0FDF4" }]}>
+              <Text style={[styles.modalSenderName, { color: C.text }]}>{transaction.senderName}</Text>
+              <Text style={[styles.modalAmount, { color: C.success }]}>
+                {formatAmount(transaction.amount)} <Text style={{ fontSize: 16 }}>د.ل</Text>
               </Text>
-            </Text>
+            </View>
 
             <View style={styles.noteField}>
               <Text style={[styles.noteLabel, { color: C.text }]}>ملاحظة الاستلام (اختياري)</Text>
               <TextInput
                 style={[
                   styles.noteInput,
-                  {
-                    color: C.text,
-                    borderColor: C.border,
-                    backgroundColor: C.surfaceSecondary,
-                  },
+                  { color: C.text, borderColor: C.border, backgroundColor: C.surfaceSecondary },
                 ]}
                 value={confirmationNotes}
                 onChangeText={setConfirmationNotes}
@@ -359,10 +385,7 @@ export default function TransactionDetailScreen() {
                 <Text style={[styles.modalCancelText, { color: C.textSecondary }]}>إلغاء</Text>
               </Pressable>
               <Pressable
-                style={[
-                  styles.modalConfirmBtn,
-                  { backgroundColor: C.success, shadowColor: C.success },
-                ]}
+                style={[styles.modalConfirmBtn, { backgroundColor: C.success, shadowColor: C.success }]}
                 onPress={handleConfirm}
                 disabled={loading}
               >
@@ -387,23 +410,31 @@ const styles = StyleSheet.create({
   headerIconBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: "center", alignItems: "center" },
   headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
   headerActions: { flexDirection: "row", gap: 8 },
-  scrollContent: { padding: 20, gap: 16 },
-  animatedContent: { gap: 16 },
-  heroCard: { borderRadius: 24, padding: 28, alignItems: "center", gap: 12 },
-  heroIcon: {},
-  heroAmount: { fontSize: 44, fontFamily: "Inter_700Bold", textAlign: "center" },
+  scrollContent: { padding: 16, gap: 14 },
+  animatedContent: { gap: 14 },
+  heroCard: { borderRadius: 24, padding: 22, alignItems: "center", gap: 10 },
+  heroIconBg: { width: 64, height: 64, borderRadius: 32, justifyContent: "center", alignItems: "center", marginBottom: 2 },
+  heroAmount: { fontSize: 40, fontFamily: "Inter_700Bold", textAlign: "center" },
   heroCurrency: { fontSize: 20, fontFamily: "Inter_500Medium" },
-  heroStatus: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20 },
-  heroStatusText: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  heroStatusBadge: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20 },
+  heroStatusText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  heroPaidSection: { width: "100%", gap: 10, marginTop: 6 },
+  heroPaidRow: { flexDirection: "row", justifyContent: "space-around", alignItems: "center" },
+  heroPaidStat: { alignItems: "center", gap: 3 },
+  heroPaidSep: { width: 1, height: 30 },
+  heroPaidValue: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  heroPaidLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  heroProgressTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
+  heroProgressFill: { height: "100%", borderRadius: 3 },
   detailsCard: {
-    borderRadius: 20, padding: 20, gap: 0,
+    borderRadius: 20, padding: 18,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
-  sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontFamily: "Inter_700Bold", marginBottom: 10 },
   infoRow: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingVertical: 12, borderBottomWidth: 1,
+    paddingVertical: 11, borderBottomWidth: 1,
   },
   infoLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   infoIcon: { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center" },
@@ -420,22 +451,27 @@ const styles = StyleSheet.create({
   notFoundText: { fontSize: 16, fontFamily: "Inter_400Regular", marginTop: 16 },
   backBtn: { borderRadius: 14, paddingHorizontal: 24, paddingVertical: 12, marginTop: 20 },
   backBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
-  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
+  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" },
   modalContent: {
-    borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, gap: 20,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 16,
+    alignItems: "center",
     shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1, shadowRadius: 16, elevation: 10,
   },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#CBD5E1", marginBottom: 4 },
+  modalIconBg: { width: 60, height: 60, borderRadius: 30, justifyContent: "center", alignItems: "center" },
   modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
-  modalSubtitle: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 24 },
-  modalHighlight: { fontFamily: "Inter_700Bold" },
-  noteField: { gap: 8 },
+  modalAmountBox: { width: "100%", borderRadius: 16, padding: 14, alignItems: "center", gap: 4 },
+  modalSenderName: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  modalAmount: { fontSize: 26, fontFamily: "Inter_700Bold" },
+  noteField: { gap: 8, width: "100%" },
   noteLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   noteInput: {
     borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14,
     paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular", minHeight: 80,
+    width: "100%",
   },
-  modalActions: { flexDirection: "row", gap: 12 },
+  modalActions: { flexDirection: "row", gap: 10, width: "100%" },
   modalCancelBtn: { flex: 1, borderRadius: 14, paddingVertical: 16, alignItems: "center" },
   modalCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   modalConfirmBtn: {

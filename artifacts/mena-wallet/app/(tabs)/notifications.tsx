@@ -1,4 +1,4 @@
-import { BellOff, BellRing, CheckCircle, CheckSquare } from "lucide-react-native";
+import { Bell, BellOff, BellRing, CheckCircle, CheckSquare } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect } from "react";
 import {
@@ -26,8 +26,32 @@ function timeAgo(dateStr: string): string {
   if (diffMins < 1) return "الآن";
   if (diffMins < 60) return `منذ ${diffMins} دقيقة`;
   if (diffHours < 24) return `منذ ${diffHours} ساعة`;
+  if (diffDays === 1) return "أمس";
   return `منذ ${diffDays} يوم`;
 }
+
+function isToday(dateStr: string): boolean {
+  const date = new Date(dateStr);
+  const now = new Date();
+  return date.toDateString() === now.toDateString();
+}
+
+function isYesterday(dateStr: string): boolean {
+  const date = new Date(dateStr);
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return date.toDateString() === yesterday.toDateString();
+}
+
+function getGroupLabel(dateStr: string): string {
+  if (isToday(dateStr)) return "اليوم";
+  if (isYesterday(dateStr)) return "أمس";
+  return "سابقاً";
+}
+
+type GroupedItem =
+  | { type: "header"; label: string; key: string }
+  | { type: "notif"; item: Notification; key: string };
 
 export default function NotificationsScreen() {
   const { user, notifications, markNotificationRead, markAllRead, unreadCount, refresh, refreshing } = useApp();
@@ -40,54 +64,88 @@ export default function NotificationsScreen() {
 
   const handleNotifPress = useCallback(
     async (notif: Notification) => {
-      if (!notif.isRead) {
-        await markNotificationRead(notif.id);
-      }
+      if (!notif.isRead) await markNotificationRead(notif.id);
       router.push(`/transaction/${notif.transactionId}`);
     },
     [markNotificationRead]
   );
 
-  const renderItem = ({ item }: { item: Notification }) => (
-    <Pressable
-      style={({ pressed }) => [
-        styles.notifCard,
-        { backgroundColor: item.isRead ? C.surface : C.isDark ? "#1a2340" : "#FAFBFF" },
-        !item.isRead && { borderLeftWidth: 3, borderLeftColor: C.tint },
-        pressed && styles.notifCardPressed,
-      ]}
-      onPress={() => handleNotifPress(item)}
-    >
-      <View style={styles.notifIconContainer}>
-        <View
-          style={[
-            styles.notifIcon,
-            { backgroundColor: item.isRead ? C.surfaceSecondary : C.isDark ? "#1e3a8a33" : "#EEF2FF" },
-          ]}
-        >
-          {item.title.includes("استلام") || item.title.includes("تأكيد")
-            ? <CheckCircle size={22} color={item.isRead ? C.textMuted : C.tint} />
-            : <BellRing size={22} color={item.isRead ? C.textMuted : C.tint} />}
+  const groupedData: GroupedItem[] = (() => {
+    const result: GroupedItem[] = [];
+    let lastLabel = "";
+    for (const n of notifications) {
+      const label = getGroupLabel(n.createdAt);
+      if (label !== lastLabel) {
+        result.push({ type: "header", label, key: `header_${label}` });
+        lastLabel = label;
+      }
+      result.push({ type: "notif", item: n, key: n.id });
+    }
+    return result;
+  })();
+
+  const renderItem = ({ item }: { item: GroupedItem }) => {
+    if (item.type === "header") {
+      return (
+        <View style={styles.groupHeader}>
+          <Text style={[styles.groupLabel, { color: C.textMuted }]}>{item.label}</Text>
+          <View style={[styles.groupLine, { backgroundColor: C.border }]} />
         </View>
-        {!item.isRead && <View style={[styles.unreadDot, { backgroundColor: C.tint, borderColor: C.surface }]} />}
-      </View>
-      <View style={styles.notifContent}>
-        <View style={styles.notifHeader}>
-          <Text style={[
-            styles.notifTitle,
-            { color: item.isRead ? C.textSecondary : C.text },
-            !item.isRead && { fontFamily: "Inter_700Bold" },
-          ]}>
-            {item.title}
+      );
+    }
+    const notif = item.item;
+    const isConfirm = notif.title.includes("استلام") || notif.title.includes("تأكيد");
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.notifCard,
+          { backgroundColor: notif.isRead ? C.surface : C.isDark ? "#1a2340" : "#F5F8FF" },
+          !notif.isRead && { borderRightWidth: 3, borderRightColor: C.tint },
+          pressed && styles.notifCardPressed,
+        ]}
+        onPress={() => handleNotifPress(notif)}
+      >
+        <View style={styles.notifIconWrap}>
+          <View
+            style={[
+              styles.notifIconBg,
+              { backgroundColor: notif.isRead ? C.surfaceSecondary : C.isDark ? "#1e3a8a44" : "#DBEAFE" },
+            ]}
+          >
+            {isConfirm
+              ? <CheckCircle size={20} color={notif.isRead ? C.textMuted : C.success} />
+              : <BellRing size={20} color={notif.isRead ? C.textMuted : C.tint} />}
+          </View>
+          {!notif.isRead && <View style={[styles.unreadDot, { backgroundColor: C.tint }]} />}
+        </View>
+
+        <View style={styles.notifContent}>
+          <View style={styles.notifTop}>
+            <Text
+              style={[
+                styles.notifTitle,
+                { color: notif.isRead ? C.textSecondary : C.text },
+                !notif.isRead && { fontFamily: "Inter_700Bold" },
+              ]}
+              numberOfLines={1}
+            >
+              {notif.title}
+            </Text>
+            <Text style={[styles.notifTime, { color: C.textMuted }]}>{timeAgo(notif.createdAt)}</Text>
+          </View>
+          <Text style={[styles.notifBody, { color: C.textSecondary }]} numberOfLines={3}>
+            {notif.body}
           </Text>
-          <Text style={[styles.notifTime, { color: C.textMuted }]}>{timeAgo(item.createdAt)}</Text>
+          {!notif.isRead && (
+            <View style={[styles.unreadLabel, { backgroundColor: C.isDark ? "#1e3a8a33" : "#EEF2FF" }]}>
+              <View style={[styles.unreadLabelDot, { backgroundColor: C.tint }]} />
+              <Text style={[styles.unreadLabelText, { color: C.tint }]}>جديد</Text>
+            </View>
+          )}
         </View>
-        <Text style={[styles.notifBody, { color: C.textSecondary }]} numberOfLines={4}>
-          {item.body}
-        </Text>
-      </View>
-    </Pressable>
-  );
+      </Pressable>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: C.background }]}>
@@ -97,21 +155,31 @@ export default function NotificationsScreen() {
           { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16), backgroundColor: C.background },
         ]}
       >
-        <Text style={[styles.headerTitle, { color: C.text }]}>الإشعارات</Text>
+        <View style={styles.headerLeft}>
+          <View style={[styles.headerIconBg, { backgroundColor: C.isDark ? "#1e3a8a33" : "#EEF2FF" }]}>
+            <Bell size={20} color={C.tint} />
+          </View>
+          <View>
+            <Text style={[styles.headerTitle, { color: C.text }]}>الإشعارات</Text>
+            {unreadCount > 0 && (
+              <Text style={[styles.headerSub, { color: C.tint }]}>{unreadCount} غير مقروء</Text>
+            )}
+          </View>
+        </View>
         {unreadCount > 0 && (
           <Pressable
             onPress={markAllRead}
-            style={[styles.markAllBtn, { backgroundColor: C.isDark ? "#1e3a8a33" : "#EEF2FF" }]}
+            style={[styles.markAllBtn, { backgroundColor: C.isDark ? "#1e3a8a22" : "#EEF2FF" }]}
           >
-            <CheckSquare size={16} color={C.tint} />
+            <CheckSquare size={15} color={C.tint} />
             <Text style={[styles.markAllText, { color: C.tint }]}>قراءة الكل</Text>
           </Pressable>
         )}
       </View>
 
       <FlatList
-        data={notifications}
-        keyExtractor={(item) => item.id}
+        data={groupedData}
+        keyExtractor={(item) => item.key}
         renderItem={renderItem}
         contentContainerStyle={[
           styles.listContent,
@@ -121,13 +189,14 @@ export default function NotificationsScreen() {
           <RefreshControl refreshing={!!refreshing} onRefresh={refresh} tintColor={C.tint} />
         }
         showsVerticalScrollIndicator={false}
-        scrollEnabled={notifications.length > 0}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <BellOff size={56} color={C.textMuted} />
+            <View style={[styles.emptyIconBg, { backgroundColor: C.surfaceSecondary }]}>
+              <BellOff size={36} color={C.textMuted} />
+            </View>
             <Text style={[styles.emptyTitle, { color: C.textSecondary }]}>لا توجد إشعارات</Text>
-            <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>ستظهر الإشعارات هنا</Text>
+            <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>ستظهر الإشعارات هنا عند وجودها</Text>
           </View>
         }
       />
@@ -139,34 +208,43 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingHorizontal: 20, paddingBottom: 16,
+    paddingHorizontal: 20, paddingBottom: 14,
   },
-  headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerIconBg: { width: 42, height: 42, borderRadius: 21, justifyContent: "center", alignItems: "center" },
+  headerTitle: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  headerSub: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 1 },
   markAllBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12,
   },
   markAllText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  listContent: { paddingHorizontal: 20, paddingTop: 4 },
+  listContent: { paddingHorizontal: 16, paddingTop: 4 },
+  groupHeader: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 4 },
+  groupLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", minWidth: 40 },
+  groupLine: { flex: 1, height: 1 },
   notifCard: {
-    borderRadius: 16, padding: 16, flexDirection: "row", gap: 14,
+    borderRadius: 18, padding: 14, flexDirection: "row", gap: 12,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
   },
   notifCardPressed: { opacity: 0.85 },
-  notifIconContainer: { position: "relative" },
-  notifIcon: { width: 46, height: 46, borderRadius: 23, justifyContent: "center", alignItems: "center" },
+  notifIconWrap: { position: "relative" },
+  notifIconBg: { width: 46, height: 46, borderRadius: 23, justifyContent: "center", alignItems: "center" },
   unreadDot: {
-    position: "absolute", top: 0, right: 0,
-    width: 12, height: 12, borderRadius: 6, borderWidth: 2,
+    position: "absolute", top: 1, right: 1,
+    width: 11, height: 11, borderRadius: 6, borderWidth: 2, borderColor: "#fff",
   },
-  notifContent: { flex: 1, gap: 6 },
-  notifHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },
+  notifContent: { flex: 1, gap: 5 },
+  notifTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   notifTitle: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
-  notifTime: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  notifTime: { fontSize: 11, fontFamily: "Inter_400Regular", flexShrink: 0 },
   notifBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
-  separator: { height: 10 },
+  unreadLabel: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  unreadLabelDot: { width: 6, height: 6, borderRadius: 3 },
+  unreadLabelText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   emptyState: { alignItems: "center", paddingTop: 80, gap: 12 },
+  emptyIconBg: { width: 80, height: 80, borderRadius: 40, justifyContent: "center", alignItems: "center" },
   emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  emptySubtitle: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  emptySubtitle: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
 });

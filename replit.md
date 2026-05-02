@@ -90,6 +90,14 @@ lib/
 - `DATABASE_URL` - PostgreSQL connection URL
 - `OPENROUTER_API_KEY` - مفتاح API للذكاء الاصطناعي (OpenRouter)
 
+## UI Design System
+
+- **LinearGradient hero cards** on Home, Reports, and Transaction Detail (expo-linear-gradient)
+- **Payment progress bars** shown on transaction cards (paidAmount / amount ratio)
+- **Grouped notifications** (اليوم / أمس / سابقاً)
+- **Performance summary** bars in Reports (payment rate & receive rate)
+- All colors via `useTheme()` / `constants/colors.ts`
+
 ## Workflows
 
 - **Start Backend**: PORT=8080 pnpm --filter @workspace/api-server run dev

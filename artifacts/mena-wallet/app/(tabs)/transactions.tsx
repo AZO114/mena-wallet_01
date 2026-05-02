@@ -72,82 +72,122 @@ export default function TransactionsScreen() {
     return true;
   });
 
-  const renderItem = ({ item }: { item: Transaction }) => (
-    <Pressable
-      style={({ pressed }) => [
-        styles.txCard,
-        { backgroundColor: C.surface },
-        pressed && styles.txCardPressed,
-      ]}
-      onPress={() => router.push(`/transaction/${item.id}`)}
-    >
-      <View style={styles.txTop}>
-        <View style={styles.txLeft}>
+  const pendingCount = filtered.filter((t) => t.status === "pending").length;
+  const receivedCount = filtered.filter((t) => t.status === "received").length;
+
+  const renderItem = ({ item }: { item: Transaction }) => {
+    const paidRatio = item.amount > 0 ? item.paidAmount / item.amount : 0;
+    const remaining = item.amount - item.paidAmount;
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.txCard,
+          { backgroundColor: C.surface },
+          pressed && styles.txCardPressed,
+        ]}
+        onPress={() => router.push(`/transaction/${item.id}`)}
+      >
+        <View style={styles.txTop}>
           <View style={[styles.txIcon, { backgroundColor: item.status === "pending" ? C.pendingBg : C.receivedBg }]}>
             {item.status === "pending"
               ? <Clock size={18} color={C.warning} />
               : <CheckCircle size={18} color={C.success} />}
           </View>
-          <View>
-            <Text style={[styles.txName, { color: C.text }]}>{item.senderName}</Text>
-            <Text style={[styles.txMeta, { color: C.textSecondary }]}>
-              {formatDate(item.createdAt)} • {formatTime(item.createdAt)}
-            </Text>
+          <View style={styles.txMain}>
+            <View style={styles.txRow}>
+              <Text style={[styles.txName, { color: C.text }]}>{item.senderName}</Text>
+              <Text style={[styles.txAmount, { color: C.text }]}>
+                {formatAmount(item.amount)}<Text style={[styles.txCurrency, { color: C.textSecondary }]}> د.ل</Text>
+              </Text>
+            </View>
+            <View style={styles.txRow}>
+              <Text style={[styles.txMeta, { color: C.textMuted }]}>
+                {formatDate(item.createdAt)} · {formatTime(item.createdAt)}
+              </Text>
+              <View style={[styles.statusBadge, { backgroundColor: item.status === "pending" ? C.pendingBg : C.receivedBg }]}>
+                <Text style={[styles.statusText, { color: item.status === "pending" ? C.warning : C.success }]}>
+                  {item.status === "pending" ? "معلقة" : "مستلمة"}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
-        <View style={styles.txRight}>
-          <Text style={[styles.txAmount, { color: C.text }]}>{formatAmount(item.amount)} <Text style={[styles.txCurrency, { color: C.textSecondary }]}>د.ل</Text></Text>
-          <View style={[styles.statusBadge, { backgroundColor: item.status === "pending" ? C.pendingBg : C.receivedBg }]}>
-            <Text style={[styles.statusText, { color: item.status === "pending" ? C.warning : C.success }]}>
-              {item.status === "pending" ? "معلقة" : "مستلمة"}
+
+        {item.paidAmount > 0 && (
+          <View style={styles.txFooter}>
+            <View style={styles.txFooterAmounts}>
+              <View style={styles.txAmountPill}>
+                <Text style={[styles.txPillLabel, { color: C.textMuted }]}>المسدد</Text>
+                <Text style={[styles.txPillValue, { color: C.success }]}>{formatAmount(item.paidAmount)}</Text>
+              </View>
+              <View style={styles.txAmountPill}>
+                <Text style={[styles.txPillLabel, { color: C.textMuted }]}>المتبقي</Text>
+                <Text style={[styles.txPillValue, { color: remaining > 0 ? C.danger : C.success }]}>{formatAmount(remaining)}</Text>
+              </View>
+            </View>
+            <View style={[styles.progressTrack, { backgroundColor: C.surfaceSecondary }]}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${Math.min(Math.round(paidRatio * 100), 100)}%` as any,
+                    backgroundColor: paidRatio >= 1 ? C.success : C.tint,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={[styles.progressLabel, { color: C.textMuted }]}>
+              {Math.round(paidRatio * 100)}% مسدد
             </Text>
           </View>
-        </View>
-      </View>
-      {item.paidAmount > 0 && (
-        <View style={styles.txBottom}>
-          <Text style={[styles.paidLabel, { color: C.textSecondary }]}>المسدد: <Text style={[styles.paidAmount, { color: C.text }]}>{formatAmount(item.paidAmount)} د.ل</Text></Text>
-          {item.confirmedByName && (
-            <Text style={[styles.confirmedBy, { color: C.textSecondary }]}>بواسطة: {item.confirmedByName}</Text>
-          )}
-        </View>
-      )}
-      {item.notes ? <Text style={[styles.txNotes, { color: C.textSecondary }]} numberOfLines={1}>{item.notes}</Text> : null}
-    </Pressable>
-  );
+        )}
+
+        {item.notes ? (
+          <Text style={[styles.txNotes, { color: C.textMuted, borderTopColor: C.border }]} numberOfLines={1}>
+            {item.notes}
+          </Text>
+        ) : null}
+      </Pressable>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: C.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16), backgroundColor: C.background }]}>
-        <Text style={[styles.headerTitle, { color: C.text }]}>سجل المعاملات</Text>
+        <View>
+          <Text style={[styles.headerTitle, { color: C.text }]}>المعاملات</Text>
+          <Text style={[styles.headerSub, { color: C.textMuted }]}>
+            {filtered.length} نتيجة · {pendingCount} معلقة · {receivedCount} مستلمة
+          </Text>
+        </View>
         <Pressable
-          style={[styles.filterToggle, { backgroundColor: C.surface }]}
+          style={[styles.filterToggle, { backgroundColor: showFilters ? C.tint : C.surface }]}
           onPress={() => setShowFilters((f) => !f)}
         >
-          <SlidersHorizontal size={20} color={showFilters ? C.tint : C.textSecondary} />
+          <SlidersHorizontal size={18} color={showFilters ? "#fff" : C.textSecondary} />
         </Pressable>
       </View>
 
-      <View style={[styles.searchContainer, { backgroundColor: C.surface }]}>
-        <Search size={18} color={C.textMuted} />
+      <View style={[styles.searchContainer, { backgroundColor: C.surface, borderColor: search ? C.tint : C.border }]}>
+        <Search size={16} color={search ? C.tint : C.textMuted} />
         <TextInput
           style={[styles.searchInput, { color: C.text }]}
           value={search}
           onChangeText={setSearch}
-          placeholder="بحث بالاسم..."
+          placeholder="بحث بالاسم أو الملاحظات..."
           placeholderTextColor={C.textMuted}
           onSubmitEditing={applyFilters}
           returnKeyType="search"
         />
         {search ? (
           <Pressable onPress={() => { setSearch(""); applyFilters(); }}>
-            <X size={18} color={C.textMuted} />
+            <X size={16} color={C.textMuted} />
           </Pressable>
         ) : null}
       </View>
 
       {showFilters && (
-        <View style={[styles.filtersPanel, { backgroundColor: C.surface }]}>
+        <View style={[styles.filtersPanel, { backgroundColor: C.surface, borderColor: C.border }]}>
           <View style={styles.filterRow}>
             <View style={styles.filterField}>
               <Text style={[styles.filterLabel, { color: C.textSecondary }]}>الحد الأدنى (د.ل)</Text>
@@ -173,7 +213,7 @@ export default function TransactionsScreen() {
             </View>
           </View>
           <Pressable style={[styles.applyBtn, { backgroundColor: C.tint }]} onPress={applyFilters}>
-            <Text style={styles.applyBtnText}>تطبيق الفلتر</Text>
+            <Text style={styles.applyBtnText}>تطبيق</Text>
           </Pressable>
         </View>
       )}
@@ -184,15 +224,20 @@ export default function TransactionsScreen() {
             key={tab}
             style={[
               styles.filterTab,
-              activeFilter === tab && [styles.filterTabActive, { backgroundColor: C.surface }],
+              activeFilter === tab && [styles.filterTabActive, { backgroundColor: C.surface, shadowColor: C.tint }],
             ]}
             onPress={() => setActiveFilter(tab)}
           >
+            {activeFilter === tab && tab === "pending" && <Clock size={12} color={C.warning} />}
+            {activeFilter === tab && tab === "received" && <CheckCircle size={12} color={C.success} />}
             <Text
               style={[
                 styles.filterTabText,
                 { color: C.textSecondary },
-                activeFilter === tab && { color: C.text, fontFamily: "Inter_700Bold" },
+                activeFilter === tab && {
+                  color: tab === "all" ? C.tint : tab === "pending" ? C.warning : C.success,
+                  fontFamily: "Inter_700Bold",
+                },
               ]}
             >
               {tab === "all" ? "الكل" : tab === "pending" ? "معلقة" : "مستلمة"}
@@ -218,9 +263,9 @@ export default function TransactionsScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <ClipboardList size={56} color={C.textMuted} />
+              <ClipboardList size={52} color={C.textMuted} />
               <Text style={[styles.emptyTitle, { color: C.textSecondary }]}>لا توجد معاملات</Text>
-              <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>لم يتم العثور على نتائج</Text>
+              <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>لم يتم العثور على نتائج مطابقة</Text>
             </View>
           }
         />
@@ -231,41 +276,46 @@ export default function TransactionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 16 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", paddingHorizontal: 20, paddingBottom: 14 },
   headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  filterToggle: { width: 40, height: 40, borderRadius: 20, justifyContent: "center", alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
-  searchContainer: { flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginBottom: 12, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  headerSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  filterToggle: { width: 40, height: 40, borderRadius: 20, justifyContent: "center", alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, marginTop: 4 },
+  searchContainer: { flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginBottom: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, gap: 10, borderWidth: 1.5 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
-  filtersPanel: { marginHorizontal: 20, marginBottom: 12, borderRadius: 16, padding: 16, gap: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  filtersPanel: { marginHorizontal: 20, marginBottom: 10, borderRadius: 16, padding: 14, gap: 12, borderWidth: 1 },
   filterRow: { flexDirection: "row", gap: 12 },
   filterField: { flex: 1, gap: 6 },
   filterLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
   filterInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular" },
-  applyBtn: { borderRadius: 12, paddingVertical: 12, alignItems: "center" },
+  applyBtn: { borderRadius: 12, paddingVertical: 11, alignItems: "center" },
   applyBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  filterTabs: { flexDirection: "row", marginHorizontal: 20, marginBottom: 12, borderRadius: 12, padding: 4 },
-  filterTab: { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: "center" },
-  filterTabActive: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+  filterTabs: { flexDirection: "row", marginHorizontal: 20, marginBottom: 10, borderRadius: 14, padding: 4, gap: 2 },
+  filterTab: { flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4 },
+  filterTabActive: { shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 2 },
   filterTabText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  listContent: { paddingHorizontal: 20, gap: 10, paddingTop: 4 },
-  txCard: { borderRadius: 16, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  listContent: { paddingHorizontal: 16, gap: 10, paddingTop: 4 },
+  txCard: { borderRadius: 18, padding: 14, gap: 0, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
   txCardPressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
-  txTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  txLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  txIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: "center", alignItems: "center" },
+  txTop: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  txIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: "center", alignItems: "center", marginTop: 2 },
+  txMain: { flex: 1, gap: 5 },
+  txRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   txName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  txMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  txRight: { alignItems: "flex-end", gap: 4 },
-  txAmount: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  txCurrency: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  txAmount: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  txCurrency: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  txMeta: { fontSize: 11, fontFamily: "Inter_400Regular" },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   statusText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  txBottom: { flexDirection: "row", justifyContent: "space-between" },
-  paidLabel: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  paidAmount: { fontFamily: "Inter_600SemiBold" },
-  confirmedBy: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  txNotes: { fontSize: 12, fontFamily: "Inter_400Regular", fontStyle: "italic" },
-  emptyState: { alignItems: "center", paddingTop: 80, gap: 12 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  emptySubtitle: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  txFooter: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(148,163,184,0.15)", gap: 6 },
+  txFooterAmounts: { flexDirection: "row", gap: 16 },
+  txAmountPill: { gap: 1 },
+  txPillLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
+  txPillValue: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  progressTrack: { height: 5, borderRadius: 3, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 3 },
+  progressLabel: { fontSize: 10, fontFamily: "Inter_500Medium" },
+  txNotes: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, fontSize: 12, fontFamily: "Inter_400Regular", fontStyle: "italic" },
+  emptyState: { alignItems: "center", paddingTop: 80, gap: 10 },
+  emptyTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  emptySubtitle: { fontSize: 13, fontFamily: "Inter_400Regular" },
 });
