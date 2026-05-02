@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme, useThemeToggle } from "@/context/ThemeContext";
 import { useApp, AiMessage } from "@/context/AppContext";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface AttachedFile {
   id: string;
@@ -94,14 +95,15 @@ export default function AiScreen() {
   const { user, sendAiMessage } = useApp();
   const C = useTheme();
   const { isDark, toggleTheme } = useThemeToggle();
+  const { t, lang } = useLanguage();
   const insets = useSafeAreaInsets();
 
+  const welcomeText = lang === "ar"
+    ? "مرحباً! أنا Mena AI 🤖\n\nأستطيع مساعدتك في:\n• تحليل المعاملات والتقارير المالية\n• الإجابة على أي سؤال عن القيم\n• تحليل الصور والفواتير والمستندات\n\nيمكنك إرفاق عدة صور ومستندات وسأتذكرها طوال المحادثة 👇"
+    : "Hello! I'm Mena AI 🤖\n\nI can help you with:\n• Analyzing transactions and financial reports\n• Answering any question about values\n• Analyzing images, invoices, and documents\n\nYou can attach images and documents and I'll remember them 👇";
+
   const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "0",
-      role: "assistant",
-      text: "مرحباً! أنا Mena AI 🤖\n\nأستطيع مساعدتك في:\n• تحليل المعاملات والتقارير المالية\n• الإجابة على أي سؤال عن القيم\n• تحليل الصور والفواتير والمستندات\n\nيمكنك إرفاق عدة صور ومستندات وسأتذكرها طوال المحادثة 👇",
-    },
+    { id: "0", role: "assistant", text: welcomeText },
   ]);
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
@@ -376,7 +378,7 @@ export default function AiScreen() {
           <View>
             <Text style={[styles.headerTitle, { color: C.text }]}>Mena AI</Text>
             <Text style={[styles.headerSubtitle, { color: loading ? C.warning : C.success }]}>
-              {loading ? "● يفكر..." : "● متصل"}
+              {loading ? t("aiThinking") : t("aiConnected")}
             </Text>
           </View>
         </View>
@@ -411,7 +413,7 @@ export default function AiScreen() {
               <Bot size={16} color="#fff" />
             </View>
             <ActivityIndicator size="small" color={C.tint} />
-            <Text style={[styles.typingText, { color: C.textSecondary }]}>Mena AI يفكر...</Text>
+            <Text style={[styles.typingText, { color: C.textSecondary }]}>Mena AI {t("aiThinking")}</Text>
           </View>
         )}
 
@@ -499,7 +501,7 @@ export default function AiScreen() {
               style={[styles.input, { backgroundColor: C.surface, color: C.text, borderColor: inputText ? C.tint : C.border }]}
               value={inputText}
               onChangeText={setInputText}
-              placeholder={attachedFiles.length > 0 ? "اسأل عن الملفات المرفقة..." : "اكتب رسالتك هنا..."}
+              placeholder={attachedFiles.length > 0 ? t("askAboutFiles") : t("typeMessage")}
               placeholderTextColor={C.textMuted}
               multiline
               maxLength={4000}

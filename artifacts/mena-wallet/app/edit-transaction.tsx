@@ -18,15 +18,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function EditTransactionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, transactions, editTransaction } = useApp();
   const C = useTheme();
+  const { t, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();
 
   const transaction = useMemo(
-    () => transactions.find((t) => t.id === id),
+    () => transactions.find((tx) => tx.id === id),
     [transactions, id]
   );
 
@@ -43,7 +45,7 @@ export default function EditTransactionScreen() {
       return;
     }
     if (!transaction || transaction.status !== "pending") {
-      Alert.alert("خطأ", "لا يمكن تعديل هذه المعاملة");
+      Alert.alert(t("error"), "لا يمكن تعديل هذه المعاملة");
       router.back();
     }
   }, [user, transaction]);
@@ -52,15 +54,15 @@ export default function EditTransactionScreen() {
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!senderName.trim()) newErrors.senderName = "اسم صاحب القيمة مطلوب";
+    if (!senderName.trim()) newErrors.senderName = t("senderRequired");
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-      newErrors.amount = "المبلغ يجب أن يكون رقماً موجباً";
+      newErrors.amount = t("invalidAmount");
     }
     if (paidAmount && (isNaN(Number(paidAmount)) || Number(paidAmount) < 0)) {
-      newErrors.paidAmount = "مبلغ السداد غير صحيح";
+      newErrors.paidAmount = t("invalidAmount");
     }
     if (Number(paidAmount) > Number(amount)) {
-      newErrors.paidAmount = "مبلغ السداد لا يمكن أن يتجاوز المبلغ الكلي";
+      newErrors.paidAmount = t("paidExceedsTotal");
     }
     return newErrors;
   };
@@ -91,6 +93,8 @@ export default function EditTransactionScreen() {
     }
   };
 
+  const noChange = isRTL ? "(بدون تغيير)" : t("noChange");
+
   return (
     <View style={[styles.container, { backgroundColor: C.background, paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 20) }]}>
       <View
@@ -108,7 +112,7 @@ export default function EditTransactionScreen() {
         </Pressable>
         <View style={styles.headerCenter}>
           <Edit2 size={20} color={C.tint} />
-          <Text style={[styles.headerTitle, { color: C.text }]}>تعديل القيمة</Text>
+          <Text style={[styles.headerTitle, { color: C.text }]}>{t("editValue")}</Text>
         </View>
         <Pressable
           style={[styles.saveBtn, { backgroundColor: C.tint }]}
@@ -123,7 +127,7 @@ export default function EditTransactionScreen() {
 
       <View style={[styles.txInfoBanner, { backgroundColor: C.isDark ? "#2D1B0E" : "#FFFBEB" }]}>
         <Text style={[styles.txInfoText, { color: C.warning }]}>
-          تعديل قيمة معلقة · لن يتم إشعار المستقبلين بالتغييرات
+          {t("editPendingNote")}
         </Text>
       </View>
 
@@ -131,17 +135,17 @@ export default function EditTransactionScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           <View style={styles.field}>
-            <Text style={[styles.label, { color: C.text }]}>اسم صاحب القيمة <Text style={{ color: C.danger }}>*</Text></Text>
+            <Text style={[styles.label, { color: C.text }]}>{t("senderNameField")} <Text style={{ color: C.danger }}>*</Text></Text>
             <TextInput
               style={[
                 styles.input,
                 { color: C.text, borderColor: errors.senderName ? C.danger : C.border, backgroundColor: C.surface },
               ]}
               value={senderName}
-              onChangeText={(t) => { setSenderName(t); setErrors((e) => ({ ...e, senderName: "" })); }}
-              placeholder="أدخل الاسم"
+              onChangeText={(v) => { setSenderName(v); setErrors((e) => ({ ...e, senderName: "" })); }}
+              placeholder={t("senderNamePlaceholder")}
               placeholderTextColor={C.textMuted}
-              textAlign="right"
+              textAlign={isRTL ? "right" : "left"}
             />
             {errors.senderName ? (
               <Text style={[styles.errorText, { color: C.danger }]}>{errors.senderName}</Text>
@@ -150,14 +154,14 @@ export default function EditTransactionScreen() {
 
           <View style={styles.row}>
             <View style={[styles.field, { flex: 1 }]}>
-              <Text style={[styles.label, { color: C.text }]}>المبلغ الكلي (د.ل) <Text style={{ color: C.danger }}>*</Text></Text>
+              <Text style={[styles.label, { color: C.text }]}>{t("totalAmountField")} <Text style={{ color: C.danger }}>*</Text></Text>
               <TextInput
                 style={[
                   styles.input,
                   { color: C.text, borderColor: errors.amount ? C.danger : C.border, backgroundColor: C.surface },
                 ]}
                 value={amount}
-                onChangeText={(t) => { setAmount(t); setErrors((e) => ({ ...e, amount: "" })); }}
+                onChangeText={(v) => { setAmount(v); setErrors((e) => ({ ...e, amount: "" })); }}
                 placeholder="0.000"
                 placeholderTextColor={C.textMuted}
                 keyboardType="decimal-pad"
@@ -169,14 +173,14 @@ export default function EditTransactionScreen() {
             </View>
 
             <View style={[styles.field, { flex: 1 }]}>
-              <Text style={[styles.label, { color: C.text }]}>المسدد (د.ل)</Text>
+              <Text style={[styles.label, { color: C.text }]}>{t("paid")} ({t("lyD")})</Text>
               <TextInput
                 style={[
                   styles.input,
                   { color: C.text, borderColor: errors.paidAmount ? C.danger : C.border, backgroundColor: C.surface },
                 ]}
                 value={paidAmount}
-                onChangeText={(t) => { setPaidAmount(t); setErrors((e) => ({ ...e, paidAmount: "" })); }}
+                onChangeText={(v) => { setPaidAmount(v); setErrors((e) => ({ ...e, paidAmount: "" })); }}
                 placeholder="0.000"
                 placeholderTextColor={C.textMuted}
                 keyboardType="decimal-pad"
@@ -190,17 +194,17 @@ export default function EditTransactionScreen() {
 
           {amount && (
             <View style={[styles.remainingBanner, { backgroundColor: C.isDark ? "#052E16" : "#F0FDF4" }]}>
-              <Text style={[styles.remainingLabel, { color: C.textSecondary }]}>المتبقي: </Text>
+              <Text style={[styles.remainingLabel, { color: C.textSecondary }]}>{t("remaining")}: </Text>
               <Text style={[styles.remainingAmount, { color: C.success }]}>
                 {(Number(amount) - Number(paidAmount || 0)).toLocaleString("ar-LY", {
                   minimumFractionDigits: 0, maximumFractionDigits: 3,
-                })} د.ل
+                })} {t("lyD")}
               </Text>
             </View>
           )}
 
           <View style={styles.field}>
-            <Text style={[styles.label, { color: C.text }]}>ملاحظات (اختياري)</Text>
+            <Text style={[styles.label, { color: C.text }]}>{t("notesField")}</Text>
             <TextInput
               style={[
                 styles.input,
@@ -209,12 +213,12 @@ export default function EditTransactionScreen() {
               ]}
               value={notes}
               onChangeText={setNotes}
-              placeholder="أي معلومات إضافية..."
+              placeholder={t("notesPlaceholder")}
               placeholderTextColor={C.textMuted}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
-              textAlign="right"
+              textAlign={isRTL ? "right" : "left"}
             />
           </View>
 
@@ -240,33 +244,48 @@ export default function EditTransactionScreen() {
               : (
                 <>
                   <Check size={22} color="#fff" />
-                  <Text style={styles.saveBtnText}>حفظ التعديلات</Text>
+                  <Text style={styles.saveBtnText}>{t("saveEdits")}</Text>
                 </>
               )}
           </Pressable>
 
           <View style={[styles.changesList, { backgroundColor: C.surfaceSecondary }]}>
-            <Text style={[styles.changesTitle, { color: C.textSecondary }]}>التغييرات (من ← إلى)</Text>
+            <Text style={[styles.changesTitle, { color: C.textSecondary }]}>{t("changes")}</Text>
             {senderName.trim() !== transaction.senderName ? (
               <Text style={[styles.changesItem, { color: C.textMuted }]}>
-                الاسم: {transaction.senderName} ← {senderName.trim() || "—"}
+                {isRTL
+                  ? `الاسم: ${transaction.senderName} ← ${senderName.trim() || "—"}`
+                  : `Name: ${transaction.senderName} → ${senderName.trim() || "—"}`
+                }
               </Text>
             ) : (
-              <Text style={[styles.changesItem, { color: C.textMuted }]}>الاسم: {transaction.senderName} (بدون تغيير)</Text>
+              <Text style={[styles.changesItem, { color: C.textMuted }]}>
+                {isRTL ? `الاسم: ${transaction.senderName}` : `Name: ${transaction.senderName}`} {noChange}
+              </Text>
             )}
             {Number(amount) !== transaction.amount ? (
               <Text style={[styles.changesItem, { color: C.textMuted }]}>
-                المبلغ: {transaction.amount.toLocaleString("ar-LY")} ← {Number(amount || 0).toLocaleString("ar-LY")} د.ل
+                {isRTL
+                  ? `المبلغ: ${transaction.amount.toLocaleString("ar-LY")} ← ${Number(amount || 0).toLocaleString("ar-LY")} ${t("lyD")}`
+                  : `Amount: ${transaction.amount.toLocaleString()} → ${Number(amount || 0).toLocaleString()} ${t("lyD")}`
+                }
               </Text>
             ) : (
-              <Text style={[styles.changesItem, { color: C.textMuted }]}>المبلغ: {transaction.amount.toLocaleString("ar-LY")} د.ل (بدون تغيير)</Text>
+              <Text style={[styles.changesItem, { color: C.textMuted }]}>
+                {isRTL ? `المبلغ: ${transaction.amount.toLocaleString("ar-LY")} ${t("lyD")}` : `Amount: ${transaction.amount.toLocaleString()} ${t("lyD")}`} {noChange}
+              </Text>
             )}
             {Number(paidAmount || 0) !== transaction.paidAmount ? (
               <Text style={[styles.changesItem, { color: C.textMuted }]}>
-                المسدد: {transaction.paidAmount.toLocaleString("ar-LY")} ← {Number(paidAmount || 0).toLocaleString("ar-LY")} د.ل
+                {isRTL
+                  ? `المسدد: ${transaction.paidAmount.toLocaleString("ar-LY")} ← ${Number(paidAmount || 0).toLocaleString("ar-LY")} ${t("lyD")}`
+                  : `Paid: ${transaction.paidAmount.toLocaleString()} → ${Number(paidAmount || 0).toLocaleString()} ${t("lyD")}`
+                }
               </Text>
             ) : (
-              <Text style={[styles.changesItem, { color: C.textMuted }]}>المسدد: {transaction.paidAmount.toLocaleString("ar-LY")} د.ل (بدون تغيير)</Text>
+              <Text style={[styles.changesItem, { color: C.textMuted }]}>
+                {isRTL ? `المسدد: ${transaction.paidAmount.toLocaleString("ar-LY")} ${t("lyD")}` : `Paid: ${transaction.paidAmount.toLocaleString()} ${t("lyD")}`} {noChange}
+              </Text>
             )}
           </View>
         </ScrollView>

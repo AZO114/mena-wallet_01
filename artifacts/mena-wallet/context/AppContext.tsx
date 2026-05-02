@@ -15,14 +15,6 @@ const BASE_URL = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
 
 export interface User {
   userId: string;
@@ -129,6 +121,16 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 async function setupNotifications() {
   if (Platform.OS === "web") return;
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  } catch (_) {}
   try {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== "granted") {

@@ -16,17 +16,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/context/ThemeContext";
 import { useApp, Transaction, TransactionFilters } from "@/context/AppContext";
+import { useLanguage } from "@/context/LanguageContext";
 
 function formatAmount(amount: number): string {
   return amount.toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("ar-LY", { year: "numeric", month: "short", day: "numeric" });
+function formatDate(dateStr: string, lang: string): string {
+  return new Date(dateStr).toLocaleDateString(lang === "ar" ? "ar-LY" : "en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
-function formatTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleTimeString("ar-LY", { hour: "2-digit", minute: "2-digit" });
+function formatTime(dateStr: string, lang: string): string {
+  return new Date(dateStr).toLocaleTimeString(lang === "ar" ? "ar-LY" : "en-US", { hour: "2-digit", minute: "2-digit" });
 }
 
 type FilterTab = "all" | "pending" | "received";
@@ -34,6 +35,7 @@ type FilterTab = "all" | "pending" | "received";
 export default function TransactionsScreen() {
   const { user, transactions, fetchTransactions, refreshing, refresh } = useApp();
   const C = useTheme();
+  const { t, lang } = useLanguage();
   const insets = useSafeAreaInsets();
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
@@ -61,19 +63,19 @@ export default function TransactionsScreen() {
     applyFilters();
   }, [activeFilter]);
 
-  const filtered = transactions.filter((t) => {
-    if (activeFilter !== "all" && t.status !== activeFilter) return false;
+  const filtered = transactions.filter((tx) => {
+    if (activeFilter !== "all" && tx.status !== activeFilter) return false;
     if (search) {
       const s = search.toLowerCase();
-      if (!t.senderName.toLowerCase().includes(s) && !t.notes?.toLowerCase().includes(s)) return false;
+      if (!tx.senderName.toLowerCase().includes(s) && !tx.notes?.toLowerCase().includes(s)) return false;
     }
-    if (minAmount && t.amount < Number(minAmount)) return false;
-    if (maxAmount && t.amount > Number(maxAmount)) return false;
+    if (minAmount && tx.amount < Number(minAmount)) return false;
+    if (maxAmount && tx.amount > Number(maxAmount)) return false;
     return true;
   });
 
-  const pendingCount = filtered.filter((t) => t.status === "pending").length;
-  const receivedCount = filtered.filter((t) => t.status === "received").length;
+  const pendingCount = filtered.filter((tx) => tx.status === "pending").length;
+  const receivedCount = filtered.filter((tx) => tx.status === "received").length;
 
   const renderItem = ({ item }: { item: Transaction }) => {
     const paidRatio = item.amount > 0 ? item.paidAmount / item.amount : 0;
@@ -97,16 +99,16 @@ export default function TransactionsScreen() {
             <View style={styles.txRow}>
               <Text style={[styles.txName, { color: C.text }]}>{item.senderName}</Text>
               <Text style={[styles.txAmount, { color: C.text }]}>
-                {formatAmount(item.amount)}<Text style={[styles.txCurrency, { color: C.textSecondary }]}> د.ل</Text>
+                {formatAmount(item.amount)}<Text style={[styles.txCurrency, { color: C.textSecondary }]}> {t("lyD")}</Text>
               </Text>
             </View>
             <View style={styles.txRow}>
               <Text style={[styles.txMeta, { color: C.textMuted }]}>
-                {formatDate(item.createdAt)} · {formatTime(item.createdAt)}
+                {formatDate(item.createdAt, lang)} · {formatTime(item.createdAt, lang)}
               </Text>
               <View style={[styles.statusBadge, { backgroundColor: item.status === "pending" ? C.pendingBg : C.receivedBg }]}>
                 <Text style={[styles.statusText, { color: item.status === "pending" ? C.warning : C.success }]}>
-                  {item.status === "pending" ? "معلقة" : "مستلمة"}
+                  {item.status === "pending" ? t("pending") : t("received")}
                 </Text>
               </View>
             </View>
@@ -117,11 +119,11 @@ export default function TransactionsScreen() {
           <View style={styles.txFooter}>
             <View style={styles.txFooterAmounts}>
               <View style={styles.txAmountPill}>
-                <Text style={[styles.txPillLabel, { color: C.textMuted }]}>المسدد</Text>
+                <Text style={[styles.txPillLabel, { color: C.textMuted }]}>{t("paid")}</Text>
                 <Text style={[styles.txPillValue, { color: C.success }]}>{formatAmount(item.paidAmount)}</Text>
               </View>
               <View style={styles.txAmountPill}>
-                <Text style={[styles.txPillLabel, { color: C.textMuted }]}>المتبقي</Text>
+                <Text style={[styles.txPillLabel, { color: C.textMuted }]}>{t("remaining")}</Text>
                 <Text style={[styles.txPillValue, { color: remaining > 0 ? C.danger : C.success }]}>{formatAmount(remaining)}</Text>
               </View>
             </View>
@@ -137,7 +139,7 @@ export default function TransactionsScreen() {
               />
             </View>
             <Text style={[styles.progressLabel, { color: C.textMuted }]}>
-              {Math.round(paidRatio * 100)}% مسدد
+              {Math.round(paidRatio * 100)}% {t("paid")}
             </Text>
           </View>
         )}
@@ -155,9 +157,9 @@ export default function TransactionsScreen() {
     <View style={[styles.container, { backgroundColor: C.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16), backgroundColor: C.background }]}>
         <View>
-          <Text style={[styles.headerTitle, { color: C.text }]}>المعاملات</Text>
+          <Text style={[styles.headerTitle, { color: C.text }]}>{t("transactionLog")}</Text>
           <Text style={[styles.headerSub, { color: C.textMuted }]}>
-            {filtered.length} نتيجة · {pendingCount} معلقة · {receivedCount} مستلمة
+            {filtered.length} {t("results")} · {pendingCount} {t("pending")} · {receivedCount} {t("received")}
           </Text>
         </View>
         <Pressable
@@ -174,7 +176,7 @@ export default function TransactionsScreen() {
           style={[styles.searchInput, { color: C.text }]}
           value={search}
           onChangeText={setSearch}
-          placeholder="بحث بالاسم أو الملاحظات..."
+          placeholder={t("searchPlaceholder")}
           placeholderTextColor={C.textMuted}
           onSubmitEditing={applyFilters}
           returnKeyType="search"
@@ -190,7 +192,7 @@ export default function TransactionsScreen() {
         <View style={[styles.filtersPanel, { backgroundColor: C.surface, borderColor: C.border }]}>
           <View style={styles.filterRow}>
             <View style={styles.filterField}>
-              <Text style={[styles.filterLabel, { color: C.textSecondary }]}>الحد الأدنى (د.ل)</Text>
+              <Text style={[styles.filterLabel, { color: C.textSecondary }]}>{t("minAmount")}</Text>
               <TextInput
                 style={[styles.filterInput, { color: C.text, borderColor: C.border, backgroundColor: C.surfaceSecondary }]}
                 value={minAmount}
@@ -201,19 +203,19 @@ export default function TransactionsScreen() {
               />
             </View>
             <View style={styles.filterField}>
-              <Text style={[styles.filterLabel, { color: C.textSecondary }]}>الحد الأقصى (د.ل)</Text>
+              <Text style={[styles.filterLabel, { color: C.textSecondary }]}>{t("maxAmount")}</Text>
               <TextInput
                 style={[styles.filterInput, { color: C.text, borderColor: C.border, backgroundColor: C.surfaceSecondary }]}
                 value={maxAmount}
                 onChangeText={setMaxAmount}
                 keyboardType="numeric"
-                placeholder="غير محدود"
+                placeholder={lang === "ar" ? "غير محدود" : "Unlimited"}
                 placeholderTextColor={C.textMuted}
               />
             </View>
           </View>
           <Pressable style={[styles.applyBtn, { backgroundColor: C.tint }]} onPress={applyFilters}>
-            <Text style={styles.applyBtnText}>تطبيق</Text>
+            <Text style={styles.applyBtnText}>{t("applyFilter")}</Text>
           </Pressable>
         </View>
       )}
@@ -240,7 +242,7 @@ export default function TransactionsScreen() {
                 },
               ]}
             >
-              {tab === "all" ? "الكل" : tab === "pending" ? "معلقة" : "مستلمة"}
+              {tab === "all" ? t("all") : tab === "pending" ? t("pending") : t("received")}
             </Text>
           </Pressable>
         ))}
@@ -264,8 +266,8 @@ export default function TransactionsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <ClipboardList size={52} color={C.textMuted} />
-              <Text style={[styles.emptyTitle, { color: C.textSecondary }]}>لا توجد معاملات</Text>
-              <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>لم يتم العثور على نتائج مطابقة</Text>
+              <Text style={[styles.emptyTitle, { color: C.textSecondary }]}>{t("noResults")}</Text>
+              <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>{t("noResultsSub")}</Text>
             </View>
           }
         />

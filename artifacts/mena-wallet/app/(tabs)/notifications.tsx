@@ -14,14 +14,23 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/context/ThemeContext";
 import { useApp, Notification } from "@/context/AppContext";
+import { useLanguage } from "@/context/LanguageContext";
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, lang: string): string {
   const now = new Date();
   const date = new Date(dateStr);
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
+
+  if (lang === "en") {
+    if (diffMins < 1) return "now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return "yesterday";
+    return `${diffDays}d ago`;
+  }
 
   if (diffMins < 1) return "الآن";
   if (diffMins < 60) return `منذ ${diffMins} دقيقة`;
@@ -43,12 +52,6 @@ function isYesterday(dateStr: string): boolean {
   return date.toDateString() === yesterday.toDateString();
 }
 
-function getGroupLabel(dateStr: string): string {
-  if (isToday(dateStr)) return "اليوم";
-  if (isYesterday(dateStr)) return "أمس";
-  return "سابقاً";
-}
-
 type GroupedItem =
   | { type: "header"; label: string; key: string }
   | { type: "notif"; item: Notification; key: string };
@@ -56,6 +59,7 @@ type GroupedItem =
 export default function NotificationsScreen() {
   const { user, notifications, markNotificationRead, markAllRead, unreadCount, refresh, refreshing } = useApp();
   const C = useTheme();
+  const { t, lang } = useLanguage();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -69,6 +73,12 @@ export default function NotificationsScreen() {
     },
     [markNotificationRead]
   );
+
+  function getGroupLabel(dateStr: string): string {
+    if (isToday(dateStr)) return t("today");
+    if (isYesterday(dateStr)) return t("yesterday");
+    return t("earlier");
+  }
 
   const groupedData: GroupedItem[] = (() => {
     const result: GroupedItem[] = [];
@@ -94,7 +104,7 @@ export default function NotificationsScreen() {
       );
     }
     const notif = item.item;
-    const isConfirm = notif.title.includes("استلام") || notif.title.includes("تأكيد");
+    const isConfirm = notif.title.includes("استلام") || notif.title.includes("تأكيد") || notif.title.includes("Receipt") || notif.title.includes("Confirm");
     return (
       <Pressable
         style={({ pressed }) => [
@@ -131,7 +141,7 @@ export default function NotificationsScreen() {
             >
               {notif.title}
             </Text>
-            <Text style={[styles.notifTime, { color: C.textMuted }]}>{timeAgo(notif.createdAt)}</Text>
+            <Text style={[styles.notifTime, { color: C.textMuted }]}>{timeAgo(notif.createdAt, lang)}</Text>
           </View>
           <Text style={[styles.notifBody, { color: C.textSecondary }]} numberOfLines={3}>
             {notif.body}
@@ -139,7 +149,7 @@ export default function NotificationsScreen() {
           {!notif.isRead && (
             <View style={[styles.unreadLabel, { backgroundColor: C.isDark ? "#1e3a8a33" : "#EEF2FF" }]}>
               <View style={[styles.unreadLabelDot, { backgroundColor: C.tint }]} />
-              <Text style={[styles.unreadLabelText, { color: C.tint }]}>جديد</Text>
+              <Text style={[styles.unreadLabelText, { color: C.tint }]}>{t("newBadge")}</Text>
             </View>
           )}
         </View>
@@ -160,9 +170,9 @@ export default function NotificationsScreen() {
             <Bell size={20} color={C.tint} />
           </View>
           <View>
-            <Text style={[styles.headerTitle, { color: C.text }]}>الإشعارات</Text>
+            <Text style={[styles.headerTitle, { color: C.text }]}>{t("notifications")}</Text>
             {unreadCount > 0 && (
-              <Text style={[styles.headerSub, { color: C.tint }]}>{unreadCount} غير مقروء</Text>
+              <Text style={[styles.headerSub, { color: C.tint }]}>{unreadCount} {t("unread")}</Text>
             )}
           </View>
         </View>
@@ -172,7 +182,7 @@ export default function NotificationsScreen() {
             style={[styles.markAllBtn, { backgroundColor: C.isDark ? "#1e3a8a22" : "#EEF2FF" }]}
           >
             <CheckSquare size={15} color={C.tint} />
-            <Text style={[styles.markAllText, { color: C.tint }]}>قراءة الكل</Text>
+            <Text style={[styles.markAllText, { color: C.tint }]}>{t("markAllRead")}</Text>
           </Pressable>
         )}
       </View>
@@ -195,8 +205,8 @@ export default function NotificationsScreen() {
             <View style={[styles.emptyIconBg, { backgroundColor: C.surfaceSecondary }]}>
               <BellOff size={36} color={C.textMuted} />
             </View>
-            <Text style={[styles.emptyTitle, { color: C.textSecondary }]}>لا توجد إشعارات</Text>
-            <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>ستظهر الإشعارات هنا عند وجودها</Text>
+            <Text style={[styles.emptyTitle, { color: C.textSecondary }]}>{t("noNotifications")}</Text>
+            <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>{t("noNotificationsSub")}</Text>
           </View>
         }
       />
