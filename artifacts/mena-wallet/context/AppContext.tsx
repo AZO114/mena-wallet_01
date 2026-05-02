@@ -42,7 +42,9 @@ export interface Transaction {
   confirmedByName: string | null;
   confirmedAt: string | null;
   notes: string | null;
+  notesAttachment: string | null;
   confirmationNotes: string | null;
+  confirmationAttachment: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -88,7 +90,7 @@ interface AppContextValue {
   fetchNotifications: () => Promise<void>;
   createTransaction: (data: CreateTransactionData) => Promise<Transaction>;
   editTransaction: (id: string, data: EditTransactionData) => Promise<Transaction>;
-  confirmTransaction: (id: string, confirmationNotes?: string) => Promise<void>;
+  confirmTransaction: (id: string, confirmationNotes?: string, confirmationAttachment?: string) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
@@ -112,6 +114,7 @@ export interface CreateTransactionData {
   amount: number;
   paidAmount: number;
   notes?: string;
+  notesAttachment?: string;
 }
 
 export interface EditTransactionData {
@@ -119,15 +122,29 @@ export interface EditTransactionData {
   amount?: number;
   paidAmount?: number;
   notes?: string;
+  notesAttachment?: string;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-async function requestNotificationPermission() {
+async function setupNotifications() {
   if (Platform.OS === "web") return;
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== "granted") {
-    await Notifications.requestPermissionsAsync();
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== "granted") {
+      await Notifications.requestPermissionsAsync();
+    }
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "Mena Wallet",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#1A56DB",
+        sound: "default",
+      });
+    }
+  } catch (e) {
+    console.log("Notifications setup skipped:", e);
   }
 }
 
@@ -135,7 +152,12 @@ async function showDeviceNotification(title: string, body: string) {
   if (Platform.OS === "web") return;
   try {
     await Notifications.scheduleNotificationAsync({
-      content: { title, body, sound: true },
+      content: {
+        title,
+        body,
+        sound: true,
+        ...(Platform.OS === "android" ? { channelId: "default" } : {}),
+      },
       trigger: null,
     });
   } catch (e) {
@@ -154,7 +176,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     loadUser();
-    requestNotificationPermission();
+    setupNotifications();
   }, []);
 
   const loadUser = async () => {
@@ -284,7 +306,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setNotifications((prev) => prev.filter((n) => n.transactionId !== id));
   }, [user]);
 
-  const confirmTransaction = useCallback(async (id: string, confirmationNotes?: string) => {
+  const confirmTransaction = useCallback(async (id: string, confirmationNotes?: string, confirmationAttachment?: string) => {
     if (!user) throw new Error("Not logged in");
     const res = await fetch(`${BASE_URL}/transactions/${id}/confirm`, {
       method: "POST",
@@ -293,6 +315,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         confirmedByUserId: user.userId,
         confirmedByName: user.name,
         confirmationNotes,
+        confirmationAttachment,
       }),
     });
     if (!res.ok) {

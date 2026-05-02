@@ -1,4 +1,4 @@
-import { Bell, Bot, CheckCircle, ClipboardList, Clock, LogOut, Moon, PlusCircle, Sun, TrendingUp } from "lucide-react-native";
+import { Bell, Bot, CheckCircle, ClipboardList, Clock, Languages, LogOut, Moon, PlusCircle, Sun, TrendingUp } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect } from "react";
@@ -16,20 +16,22 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme, useThemeToggle } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
+import { useLanguage } from "@/context/LanguageContext";
 
 function formatAmount(amount: number): string {
   return amount.toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, lang: string): string {
   const date = new Date(dateStr);
-  return date.toLocaleDateString("ar-LY", { month: "short", day: "numeric" });
+  return date.toLocaleDateString(lang === "ar" ? "ar-LY" : "en-US", { month: "short", day: "numeric" });
 }
 
 export default function HomeScreen() {
   const { user, logout, transactions, unreadCount, refresh, refreshing } = useApp();
   const C = useTheme();
   const { isDark, toggleTheme } = useThemeToggle();
+  const { t, toggleLang, lang } = useLanguage();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -67,7 +69,7 @@ export default function HomeScreen() {
         <View style={styles.headerLeft}>
           <Image source={require("@/assets/images/logo.png")} style={styles.headerLogo} resizeMode="contain" />
           <View>
-            <Text style={[styles.greeting, { color: C.textSecondary }]}>مرحباً،</Text>
+            <Text style={[styles.greeting, { color: C.textSecondary }]}>{t("greeting")}</Text>
             <Text style={[styles.userName, { color: C.text }]}>{user.name}</Text>
           </View>
         </View>
@@ -89,6 +91,12 @@ export default function HomeScreen() {
           >
             {isDark ? <Sun size={18} color={C.gold} /> : <Moon size={18} color={C.tint} />}
           </Pressable>
+          <Pressable
+            onPress={toggleLang}
+            style={[styles.iconBtn, { backgroundColor: C.isDark ? "#1e3a8a22" : "#EEF2FF" }]}
+          >
+            <Languages size={18} color={C.tint} />
+          </Pressable>
           <Pressable onPress={logout} style={[styles.iconBtn, { backgroundColor: C.surface }]}>
             <LogOut size={18} color={C.textSecondary} />
           </Pressable>
@@ -104,16 +112,16 @@ export default function HomeScreen() {
         <View style={styles.heroTop}>
           <View style={styles.heroTitleRow}>
             <TrendingUp size={16} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.heroLabel}>إجمالي القيم</Text>
+            <Text style={styles.heroLabel}>{t("totalValues")}</Text>
           </View>
           <View style={styles.heroCountBadge}>
-            <Text style={styles.heroCountText}>{transactions.length} معاملة</Text>
+            <Text style={styles.heroCountText}>{transactions.length} {t("txCount")}</Text>
           </View>
         </View>
         <Text style={styles.heroAmount}>{formatAmount(totalAmount)}</Text>
-        <Text style={styles.heroCurrency}>دينار ليبي</Text>
+        <Text style={styles.heroCurrency}>{lang === "ar" ? "دينار ليبي" : "Libyan Dinar"}</Text>
         <View style={styles.heroProgressRow}>
-          <Text style={styles.heroProgressLabel}>نسبة السداد: {Math.round(paymentRatio * 100)}%</Text>
+          <Text style={styles.heroProgressLabel}>{t("paymentRate")}: {Math.round(paymentRatio * 100)}%</Text>
           <View style={styles.heroProgressTrack}>
             <View style={[styles.heroProgressFill, { width: `${Math.round(paymentRatio * 100)}%` as any }]} />
           </View>
@@ -122,12 +130,12 @@ export default function HomeScreen() {
         <View style={styles.heroStatsRow}>
           <View style={styles.heroStat}>
             <Text style={styles.heroStatValue}>{formatAmount(totalPaid)}</Text>
-            <Text style={styles.heroStatLabel}>المسدد</Text>
+            <Text style={styles.heroStatLabel}>{t("totalPaid")}</Text>
           </View>
           <View style={styles.heroStatSep} />
           <View style={styles.heroStat}>
             <Text style={styles.heroStatValue}>{formatAmount(totalAmount - totalPaid)}</Text>
-            <Text style={styles.heroStatLabel}>المتبقي</Text>
+            <Text style={styles.heroStatLabel}>{t("totalRemaining")}</Text>
           </View>
         </View>
       </LinearGradient>
@@ -142,9 +150,9 @@ export default function HomeScreen() {
               {pending.length}
             </Text>
           </View>
-          <Text style={[styles.statLabel, { color: C.textSecondary }]}>معلقة</Text>
+          <Text style={[styles.statLabel, { color: C.textSecondary }]}>{t("pending")}</Text>
           <Text style={[styles.statAmount, { color: C.warning }]}>{formatAmount(totalPending)}</Text>
-          <Text style={[styles.statCurrency, { color: C.textMuted }]}>د.ل</Text>
+          <Text style={[styles.statCurrency, { color: C.textMuted }]}>{t("lyD")}</Text>
         </View>
 
         <View style={[styles.statCard, { backgroundColor: C.isDark ? "#052E16" : "#ECFDF5" }]}>
@@ -156,9 +164,9 @@ export default function HomeScreen() {
               {received.length}
             </Text>
           </View>
-          <Text style={[styles.statLabel, { color: C.textSecondary }]}>مستلمة</Text>
+          <Text style={[styles.statLabel, { color: C.textSecondary }]}>{t("received")}</Text>
           <Text style={[styles.statAmount, { color: C.success }]}>{formatAmount(totalReceived)}</Text>
-          <Text style={[styles.statCurrency, { color: C.textMuted }]}>د.ل</Text>
+          <Text style={[styles.statCurrency, { color: C.textMuted }]}>{t("lyD")}</Text>
         </View>
       </View>
 
@@ -173,7 +181,7 @@ export default function HomeScreen() {
             onPress={() => router.push("/add-transaction")}
           >
             <PlusCircle size={21} color="#fff" />
-            <Text style={styles.addButtonText}>إضافة قيمة</Text>
+            <Text style={styles.addButtonText}>{t("addValue")}</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [
@@ -184,7 +192,7 @@ export default function HomeScreen() {
             onPress={() => router.push("/(tabs)/ai")}
           >
             <Bot size={21} color={C.tint} />
-            <Text style={[styles.aiButtonText, { color: C.tint }]}>Mena AI</Text>
+            <Text style={[styles.aiButtonText, { color: C.tint }]}>{t("aiAssistant")}</Text>
           </Pressable>
         </View>
       )}
@@ -199,25 +207,25 @@ export default function HomeScreen() {
           onPress={() => router.push("/(tabs)/ai")}
         >
           <Bot size={21} color={C.tint} />
-          <Text style={[styles.aiButtonText, { color: C.tint }]}>Mena AI — المساعد الذكي</Text>
+          <Text style={[styles.aiButtonText, { color: C.tint }]}>{t("aiAssistantFull")}</Text>
         </Pressable>
       )}
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: C.text }]}>أحدث المعاملات</Text>
+          <Text style={[styles.sectionTitle, { color: C.text }]}>{t("recentTransactions")}</Text>
           <Pressable
             style={[styles.seeAllBtn, { backgroundColor: C.isDark ? "#1e3a8a22" : "#EEF2FF" }]}
             onPress={() => router.push("/(tabs)/transactions")}
           >
-            <Text style={[styles.sectionLink, { color: C.tint }]}>عرض الكل</Text>
+            <Text style={[styles.sectionLink, { color: C.tint }]}>{t("viewAll")}</Text>
           </Pressable>
         </View>
 
         {recentTransactions.length === 0 ? (
           <View style={[styles.emptyState, { backgroundColor: C.surface }]}>
             <ClipboardList size={44} color={C.textMuted} />
-            <Text style={[styles.emptyText, { color: C.textMuted }]}>لا توجد معاملات بعد</Text>
+            <Text style={[styles.emptyText, { color: C.textMuted }]}>{t("noTransactions")}</Text>
           </View>
         ) : (
           recentTransactions.map((tx) => {
@@ -246,13 +254,13 @@ export default function HomeScreen() {
                   <View style={styles.txInfo}>
                     <View style={styles.txInfoTop}>
                       <Text style={[styles.txName, { color: C.text }]}>{tx.senderName}</Text>
-                      <Text style={[styles.txAmount, { color: C.text }]}>{formatAmount(tx.amount)}<Text style={[styles.txCurrency, { color: C.textSecondary }]}> د.ل</Text></Text>
+                      <Text style={[styles.txAmount, { color: C.text }]}>{formatAmount(tx.amount)}<Text style={[styles.txCurrency, { color: C.textSecondary }]}> {t("lyD")}</Text></Text>
                     </View>
                     <View style={styles.txInfoBottom}>
-                      <Text style={[styles.txDate, { color: C.textMuted }]}>{formatDate(tx.createdAt)}</Text>
+                      <Text style={[styles.txDate, { color: C.textMuted }]}>{formatDate(tx.createdAt, lang)}</Text>
                       <View style={[styles.txBadge, { backgroundColor: tx.status === "pending" ? C.pendingBg : C.receivedBg }]}>
                         <Text style={[styles.txBadgeText, { color: tx.status === "pending" ? C.warning : C.success }]}>
-                          {tx.status === "pending" ? "معلقة" : "مستلمة"}
+                          {tx.status === "pending" ? t("pending") : t("received")}
                         </Text>
                       </View>
                     </View>

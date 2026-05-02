@@ -1,10 +1,13 @@
-import { AlertCircle, CheckCircle, PlusCircle, Send, Users, X } from "lucide-react-native";
+import { AlertCircle, Camera, CheckCircle, Image as ImageIcon, PlusCircle, Send, Trash2, Users, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,12 +21,30 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
+import { useLanguage } from "@/context/LanguageContext";
 
 type Mode = "new" | "supplement";
+
+async function pickAndCompressImage(): Promise<string | null> {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    quality: 0.7,
+  });
+  if (result.canceled || !result.assets[0]) return null;
+  const uri = result.assets[0].uri;
+  const compressed = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ resize: { width: 800 } }],
+    { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+  );
+  return compressed.base64 ? `data:image/jpeg;base64,${compressed.base64}` : null;
+}
 
 export default function AddTransactionScreen() {
   const { user, createTransaction, editTransaction, transactions } = useApp();
   const C = useTheme();
+  const { t, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<Mode>("new");
   const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
@@ -33,12 +54,16 @@ export default function AddTransactionScreen() {
   const [amount, setAmount] = useState("");
   const [paidAmount, setPaidAmount] = useState("");
   const [notes, setNotes] = useState("");
+  const [notesImage, setNotesImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const slideAnim = useRef(new Animated.Value(50)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const pendingTransactions = transactions.filter((t) => t.status === "pending");
+  const supplementableTransactions = transactions.filter(
+    (tx) => tx.paidAmount < tx.amount
+  );
 
   useEffect(() => {
     if (!user || user.role !== "sender") {
@@ -53,30 +78,42 @@ export default function AddTransactionScreen() {
 
   const validateNew = () => {
     const newErrors: Record<string, string> = {};
-    if (!senderName.trim()) newErrors.senderName = "اسم صاحب القيمة مطلوب";
+    if (!senderName.trim()) newErrors.senderName = t("senderRequired");
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-      newErrors.amount = "المبلغ يجب أن يكون رقماً موجباً";
+      newErrors.amount = t("invalidAmount");
     }
     if (paidAmount && (isNaN(Number(paidAmount)) || Number(paidAmount) < 0)) {
-      newErrors.paidAmount = "مبلغ السداد غير صحيح";
+      newErrors.paidAmount = t("invalidAmount");
     }
     if (paidAmount && Number(paidAmount) > Number(amount)) {
-      newErrors.paidAmount = "مبلغ السداد لا يمكن أن يتجاوز المبلغ الكلي";
+      newErrors.paidAmount = t("paidExceedsTotal");
     }
     return newErrors;
   };
 
   const validateSupplement = () => {
     const newErrors: Record<string, string> = {};
-    if (!selectedTxId) newErrors.tx = "اختر معاملة من القائمة";
+    if (!selectedTxId) newErrors.tx = t("selectTx");
     if (!additionalPaid || isNaN(Number(additionalPaid)) || Number(additionalPaid) <= 0) {
-      newErrors.additionalPaid = "أدخل المبلغ الإضافي";
+      newErrors.additionalPaid = t("enterAdditional");
     }
-    const tx = pendingTransactions.find((t) => t.id === selectedTxId);
+    const tx = supplementableTransactions.find((t) => t.id === selectedTxId);
     if (tx && Number(additionalPaid) > (tx.amount - tx.paidAmount)) {
-      newErrors.additionalPaid = "المبلغ يتجاوز المتبقي";
+      newErrors.additionalPaid = t("exceedsRemaining");
     }
     return newErrors;
+  };
+
+  const handlePickImage = async () => {
+    setImageLoading(true);
+    try {
+      const base64 = await pickAndCompressImage();
+      if (base64) setNotesImage(base64);
+    } catch {
+      // ignore
+    } finally {
+      setImageLoading(false);
+    }
   };
 
   const handleSubmitNew = async () => {
@@ -93,6 +130,7 @@ export default function AddTransactionScreen() {
         amount: Number(amount),
         paidAmount: Number(paidAmount || 0),
         notes: notes.trim() || undefined,
+        notesAttachment: notesImage ?? undefined,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
@@ -111,7 +149,7 @@ export default function AddTransactionScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
-    const tx = pendingTransactions.find((t) => t.id === selectedTxId)!;
+    const tx = supplementableTransactions.find((t) => t.id === selectedTxId)!;
     const newPaidAmount = tx.paidAmount + Number(additionalPaid);
 
     setLoading(true);
@@ -136,7 +174,7 @@ export default function AddTransactionScreen() {
           <X size={22} color={C.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: C.text }]}>
-          {mode === "new" ? "إضافة قيمة جديدة" : "تكملة قيمة موجودة"}
+          {mode === "new" ? t("addNewValue") : t("supplementValue")}
         </Text>
         <View style={{ width: 40 }} />
       </View>
@@ -148,7 +186,7 @@ export default function AddTransactionScreen() {
         >
           <PlusCircle size={16} color={mode === "new" ? C.tint : C.textSecondary} />
           <Text style={[styles.modeTabText, { color: mode === "new" ? C.tint : C.textSecondary }, mode === "new" && { fontFamily: "Inter_700Bold" }]}>
-            قيمة جديدة
+            {t("newValueTab")}
           </Text>
         </Pressable>
         <Pressable
@@ -157,7 +195,7 @@ export default function AddTransactionScreen() {
         >
           <CheckCircle size={16} color={mode === "supplement" ? C.tint : C.textSecondary} />
           <Text style={[styles.modeTabText, { color: mode === "supplement" ? C.tint : C.textSecondary }, mode === "supplement" && { fontFamily: "Inter_700Bold" }]}>
-            تكملة قيمة
+            {t("supplementTab")}
           </Text>
         </Pressable>
       </View>
@@ -171,32 +209,32 @@ export default function AddTransactionScreen() {
                 <View style={[styles.recipientBanner, { backgroundColor: C.isDark ? "#1e3a8a22" : "#EEF2FF" }]}>
                   <Users size={24} color={C.tint} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.recipientLabel, { color: C.textSecondary }]}>المستقبلون (تلقائي)</Text>
+                    <Text style={[styles.recipientLabel, { color: C.textSecondary }]}>{t("recipientsAuto")}</Text>
                     <Text style={[styles.recipientNames, { color: C.tint }]}>سلوان عباس و ريان عباس و أنس جميل</Text>
                   </View>
                   <CheckCircle size={20} color={C.success} />
                 </View>
 
                 <View style={styles.field}>
-                  <Text style={[styles.label, { color: C.text }]}>اسم صاحب القيمة <Text style={{ color: C.danger }}>*</Text></Text>
+                  <Text style={[styles.label, { color: C.text }]}>{t("senderNameField")} <Text style={{ color: C.danger }}>*</Text></Text>
                   <TextInput
                     style={[styles.input, { color: C.text, borderColor: errors.senderName ? C.danger : C.border, backgroundColor: C.surface }]}
                     value={senderName}
-                    onChangeText={(t) => { setSenderName(t); setErrors((e) => ({ ...e, senderName: "" })); }}
-                    placeholder="أدخل الاسم"
+                    onChangeText={(v) => { setSenderName(v); setErrors((e) => ({ ...e, senderName: "" })); }}
+                    placeholder={t("senderNamePlaceholder")}
                     placeholderTextColor={C.textMuted}
-                    textAlign="right"
+                    textAlign={isRTL ? "right" : "left"}
                   />
                   {errors.senderName ? <Text style={[styles.errorText, { color: C.danger }]}>{errors.senderName}</Text> : null}
                 </View>
 
                 <View style={styles.row}>
                   <View style={[styles.field, { flex: 1 }]}>
-                    <Text style={[styles.label, { color: C.text }]}>المبلغ الكلي (د.ل) <Text style={{ color: C.danger }}>*</Text></Text>
+                    <Text style={[styles.label, { color: C.text }]}>{t("totalAmountField")} <Text style={{ color: C.danger }}>*</Text></Text>
                     <TextInput
                       style={[styles.input, { color: C.text, borderColor: errors.amount ? C.danger : C.border, backgroundColor: C.surface }]}
                       value={amount}
-                      onChangeText={(t) => { setAmount(t); setErrors((e) => ({ ...e, amount: "" })); }}
+                      onChangeText={(v) => { setAmount(v); setErrors((e) => ({ ...e, amount: "" })); }}
                       placeholder="0.000"
                       placeholderTextColor={C.textMuted}
                       keyboardType="decimal-pad"
@@ -206,11 +244,11 @@ export default function AddTransactionScreen() {
                   </View>
 
                   <View style={[styles.field, { flex: 1 }]}>
-                    <Text style={[styles.label, { color: C.text }]}>المبلغ المسدد (د.ل)</Text>
+                    <Text style={[styles.label, { color: C.text }]}>{t("paidAmountField")}</Text>
                     <TextInput
                       style={[styles.input, { color: C.text, borderColor: errors.paidAmount ? C.danger : C.border, backgroundColor: C.surface }]}
                       value={paidAmount}
-                      onChangeText={(t) => { setPaidAmount(t); setErrors((e) => ({ ...e, paidAmount: "" })); }}
+                      onChangeText={(v) => { setPaidAmount(v); setErrors((e) => ({ ...e, paidAmount: "" })); }}
                       placeholder="0.000"
                       placeholderTextColor={C.textMuted}
                       keyboardType="decimal-pad"
@@ -222,26 +260,65 @@ export default function AddTransactionScreen() {
 
                 {amount && paidAmount && Number(paidAmount) >= 0 && (
                   <View style={[styles.remainingBanner, { backgroundColor: C.isDark ? "#052E16" : "#F0FDF4" }]}>
-                    <Text style={[styles.remainingLabel, { color: C.textSecondary }]}>المتبقي: </Text>
+                    <Text style={[styles.remainingLabel, { color: C.textSecondary }]}>{t("remaining")}: </Text>
                     <Text style={[styles.remainingAmount, { color: C.success }]}>
-                      {(Number(amount) - Number(paidAmount || 0)).toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} د.ل
+                      {(Number(amount) - Number(paidAmount || 0)).toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {t("lyD")}
                     </Text>
                   </View>
                 )}
 
                 <View style={styles.field}>
-                  <Text style={[styles.label, { color: C.text }]}>ملاحظات (اختياري)</Text>
+                  <Text style={[styles.label, { color: C.text }]}>{t("notesField")}</Text>
                   <TextInput
                     style={[styles.input, styles.textArea, { color: C.text, borderColor: C.border, backgroundColor: C.surface }]}
                     value={notes}
                     onChangeText={setNotes}
-                    placeholder="أي معلومات إضافية..."
+                    placeholder={t("notesPlaceholder")}
                     placeholderTextColor={C.textMuted}
                     multiline
                     numberOfLines={3}
                     textAlignVertical="top"
-                    textAlign="right"
+                    textAlign={isRTL ? "right" : "left"}
                   />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: C.text }]}>{t("attachImage")}</Text>
+                  {notesImage ? (
+                    <View style={styles.imagePreviewWrap}>
+                      <Image source={{ uri: notesImage }} style={styles.imagePreview} resizeMode="cover" />
+                      <View style={styles.imageOverlayBtns}>
+                        <Pressable
+                          style={[styles.imageOverlayBtn, { backgroundColor: C.tint }]}
+                          onPress={handlePickImage}
+                        >
+                          <Camera size={16} color="#fff" />
+                          <Text style={styles.imageOverlayBtnText}>{t("changeImage")}</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.imageOverlayBtn, { backgroundColor: C.danger }]}
+                          onPress={() => setNotesImage(null)}
+                        >
+                          <Trash2 size={16} color="#fff" />
+                          <Text style={styles.imageOverlayBtnText}>{t("removeImage")}</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  ) : (
+                    <Pressable
+                      style={[styles.imagePickerBtn, { borderColor: C.border, backgroundColor: C.surface }]}
+                      onPress={handlePickImage}
+                      disabled={imageLoading}
+                    >
+                      {imageLoading
+                        ? <ActivityIndicator color={C.tint} />
+                        : <>
+                            <ImageIcon size={22} color={C.tint} />
+                            <Text style={[styles.imagePickerText, { color: C.tint }]}>{t("attachImage")}</Text>
+                          </>
+                      }
+                    </Pressable>
+                  )}
                 </View>
 
                 {errors.general ? (
@@ -264,73 +341,84 @@ export default function AddTransactionScreen() {
                   {loading ? <ActivityIndicator color="#fff" /> : (
                     <>
                       <Send size={20} color="#fff" />
-                      <Text style={styles.submitBtnText}>إرسال القيمة</Text>
+                      <Text style={styles.submitBtnText}>{t("sendValue")}</Text>
                     </>
                   )}
                 </Pressable>
 
                 <Text style={[styles.disclaimer, { color: C.textMuted }]}>
-                  سيتم إرسال إشعار لسلوان وريان وأنس فور إضافة القيمة
+                  {t("notifyWillSend")}
                 </Text>
               </>
             ) : (
               <>
                 <Text style={[styles.supplementHint, { color: C.textSecondary }]}>
-                  اختر من القيم المعلقة وأضف مبلغ إضافي للسداد
+                  {t("supplementHint")}
                 </Text>
 
                 {errors.tx ? <Text style={[styles.errorText, { color: C.danger }]}>{errors.tx}</Text> : null}
 
-                {pendingTransactions.length === 0 ? (
+                {supplementableTransactions.length === 0 ? (
                   <View style={[styles.noTxCard, { backgroundColor: C.surface }]}>
-                    <Text style={[styles.noTxText, { color: C.textSecondary }]}>لا توجد قيم معلقة</Text>
+                    <Text style={[styles.noTxText, { color: C.textSecondary }]}>{t("noSupplementable")}</Text>
                   </View>
                 ) : (
-                  pendingTransactions.map((tx) => (
-                    <Pressable
-                      key={tx.id}
-                      style={[
-                        styles.txSelectCard,
-                        {
-                          backgroundColor: selectedTxId === tx.id ? (C.isDark ? "#1e3a8a33" : "#EEF2FF") : C.surface,
-                          borderColor: selectedTxId === tx.id ? C.tint : C.border,
-                        },
-                      ]}
-                      onPress={() => { setSelectedTxId(tx.id); setErrors((e) => ({ ...e, tx: "" })); }}
-                    >
-                      <View style={styles.txSelectLeft}>
-                        <Text style={[styles.txSelectName, { color: C.text }]}>{tx.senderName}</Text>
-                        <Text style={[styles.txSelectMeta, { color: C.textSecondary }]}>
-                          المتبقي: {(tx.amount - tx.paidAmount).toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} د.ل
-                        </Text>
-                      </View>
-                      <View style={styles.txSelectRight}>
-                        <Text style={[styles.txSelectAmount, { color: C.text }]}>
-                          {tx.amount.toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} د.ل
-                        </Text>
-                        {selectedTxId === tx.id && (
-                          <CheckCircle size={20} color={C.tint} />
-                        )}
-                      </View>
-                    </Pressable>
-                  ))
+                  supplementableTransactions.map((tx) => {
+                    const remaining = tx.amount - tx.paidAmount;
+                    const isPending = tx.status === "pending";
+                    return (
+                      <Pressable
+                        key={tx.id}
+                        style={[
+                          styles.txSelectCard,
+                          {
+                            backgroundColor: selectedTxId === tx.id ? (C.isDark ? "#1e3a8a33" : "#EEF2FF") : C.surface,
+                            borderColor: selectedTxId === tx.id ? C.tint : C.border,
+                          },
+                        ]}
+                        onPress={() => { setSelectedTxId(tx.id); setErrors((e) => ({ ...e, tx: "" })); }}
+                      >
+                        <View style={styles.txSelectLeft}>
+                          <View style={styles.txSelectNameRow}>
+                            <Text style={[styles.txSelectName, { color: C.text }]}>{tx.senderName}</Text>
+                            <View style={[styles.txStatusBadge, { backgroundColor: isPending ? C.pendingBg : C.receivedBg }]}>
+                              <Text style={[styles.txStatusBadgeText, { color: isPending ? C.warning : C.success }]}>
+                                {isPending ? t("pending") : t("received")}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={[styles.txSelectMeta, { color: C.textSecondary }]}>
+                            {t("remaining")}: {remaining.toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {t("lyD")}
+                          </Text>
+                        </View>
+                        <View style={styles.txSelectRight}>
+                          <Text style={[styles.txSelectAmount, { color: C.text }]}>
+                            {tx.amount.toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {t("lyD")}
+                          </Text>
+                          {selectedTxId === tx.id && (
+                            <CheckCircle size={20} color={C.tint} />
+                          )}
+                        </View>
+                      </Pressable>
+                    );
+                  })
                 )}
 
                 {selectedTxId && (
                   <>
                     {(() => {
-                      const tx = pendingTransactions.find((t) => t.id === selectedTxId)!;
+                      const tx = supplementableTransactions.find((t) => t.id === selectedTxId)!;
                       const remaining = tx.amount - tx.paidAmount;
                       return (
                         <View style={styles.field}>
                           <Text style={[styles.label, { color: C.text }]}>
-                            المبلغ الإضافي للسداد (المتبقي: {remaining.toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} د.ل)
+                            {t("additionalPaidLabel")} ({t("remaining")}: {remaining.toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {t("lyD")})
                             <Text style={{ color: C.danger }}> *</Text>
                           </Text>
                           <TextInput
                             style={[styles.input, { color: C.text, borderColor: errors.additionalPaid ? C.danger : C.border, backgroundColor: C.surface }]}
                             value={additionalPaid}
-                            onChangeText={(t) => { setAdditionalPaid(t); setErrors((e) => ({ ...e, additionalPaid: "" })); }}
+                            onChangeText={(v) => { setAdditionalPaid(v); setErrors((e) => ({ ...e, additionalPaid: "" })); }}
                             placeholder="0.000"
                             placeholderTextColor={C.textMuted}
                             keyboardType="decimal-pad"
@@ -363,7 +451,7 @@ export default function AddTransactionScreen() {
                   {loading ? <ActivityIndicator color="#fff" /> : (
                     <>
                       <CheckCircle size={20} color="#fff" />
-                      <Text style={styles.submitBtnText}>تأكيد إضافة المبلغ</Text>
+                      <Text style={styles.submitBtnText}>{t("confirmAddAmount")}</Text>
                     </>
                   )}
                 </Pressable>
@@ -421,8 +509,27 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
   txSelectLeft: { flex: 1, gap: 4 },
+  txSelectNameRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   txSelectName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  txStatusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  txStatusBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   txSelectMeta: { fontSize: 12, fontFamily: "Inter_400Regular" },
   txSelectRight: { alignItems: "flex-end", gap: 4 },
   txSelectAmount: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  imagePickerBtn: {
+    borderWidth: 1.5, borderRadius: 14, borderStyle: "dashed",
+    paddingVertical: 18, flexDirection: "row", alignItems: "center",
+    justifyContent: "center", gap: 10,
+  },
+  imagePickerText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  imagePreviewWrap: { borderRadius: 14, overflow: "hidden" },
+  imagePreview: { width: "100%", height: 200 },
+  imageOverlayBtns: {
+    flexDirection: "row", gap: 8, padding: 10,
+  },
+  imageOverlayBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, borderRadius: 10, paddingVertical: 8,
+  },
+  imageOverlayBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

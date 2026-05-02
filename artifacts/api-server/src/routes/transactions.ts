@@ -21,7 +21,9 @@ function mapTransaction(t: any) {
     confirmedByName: t.confirmedByName,
     confirmedAt: t.confirmedAt?.toISOString() ?? null,
     notes: t.notes,
+    notesAttachment: t.notesAttachment ?? null,
     confirmationNotes: t.confirmationNotes,
+    confirmationAttachment: t.confirmationAttachment ?? null,
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),
   };
@@ -70,7 +72,7 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { senderName, amount, paidAmount, notes, createdByUserId } = req.body;
+    const { senderName, amount, paidAmount, notes, notesAttachment, createdByUserId } = req.body;
 
     if (!senderName || !amount || !createdByUserId) {
       res.status(400).json({ error: "Missing required fields" });
@@ -88,6 +90,7 @@ router.post("/", async (req, res) => {
       paidAmount: String(paidAmount ?? 0),
       status: "pending",
       notes: notes ?? null,
+      notesAttachment: notesAttachment ?? null,
       createdByUserId,
       createdAt: now,
       updatedAt: now,
@@ -135,45 +138,61 @@ router.get("/:id", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   try {
-    const { senderName, amount, paidAmount, notes } = req.body;
+    const { senderName, amount, paidAmount, notes, notesAttachment } = req.body;
     const [t] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, req.params.id));
 
     if (!t) { res.status(404).json({ error: "المعاملة غير موجودة" }); return; }
-    if (t.status !== "pending") { res.status(400).json({ error: "لا يمكن تعديل معاملة مستلمة" }); return; }
 
     const now = new Date();
     const updateData: any = { updatedAt: now };
-    if (senderName !== undefined) updateData.senderName = senderName;
-    if (amount !== undefined) updateData.amount = String(amount);
-    if (paidAmount !== undefined) updateData.paidAmount = String(paidAmount);
-    if (notes !== undefined) updateData.notes = notes;
+
+    if (t.status === "pending") {
+      if (senderName !== undefined) updateData.senderName = senderName;
+      if (amount !== undefined) updateData.amount = String(amount);
+      if (paidAmount !== undefined) updateData.paidAmount = String(paidAmount);
+      if (notes !== undefined) updateData.notes = notes;
+      if (notesAttachment !== undefined) updateData.notesAttachment = notesAttachment;
+    } else {
+      if (paidAmount !== undefined) {
+        const newPaid = Number(paidAmount);
+        const totalAmount = Number(t.amount);
+        if (newPaid > totalAmount) {
+          res.status(400).json({ error: "المبلغ المسدد لا يمكن أن يتجاوز المبلغ الكلي" });
+          return;
+        }
+        updateData.paidAmount = String(paidAmount);
+      }
+    }
 
     await db.update(transactionsTable).set(updateData).where(eq(transactionsTable.id, req.params.id));
 
     const dateStr = now.toLocaleDateString("ar-LY", { year: "numeric", month: "long", day: "numeric" });
     const timeStr = now.toLocaleTimeString("ar-LY", { hour: "2-digit", minute: "2-digit" });
-    const editTitle = "✏️ تم تعديل قيمة";
 
-    const changes: string[] = [];
-    if (senderName !== undefined && senderName !== t.senderName) {
-      changes.push(`الاسم: ${t.senderName} ← ${senderName}`);
-    }
-    if (amount !== undefined && Number(amount) !== Number(t.amount)) {
-      changes.push(`المبلغ الكلي: ${Number(t.amount).toLocaleString("ar-LY")} ← ${Number(amount).toLocaleString("ar-LY")} د.ل`);
-    }
-    if (paidAmount !== undefined && Number(paidAmount) !== Number(t.paidAmount)) {
-      changes.push(`المسدد: ${Number(t.paidAmount).toLocaleString("ar-LY")} ← ${Number(paidAmount).toLocaleString("ar-LY")} د.ل`);
-    }
-    if (notes !== undefined && notes !== t.notes) {
-      changes.push(`الملاحظات: ${t.notes ?? "—"} ← ${notes || "—"}`);
-    }
+    if (t.status === "pending") {
+      const changes: string[] = [];
+      if (senderName !== undefined && senderName !== t.senderName) {
+        changes.push(`الاسم: ${t.senderName} ← ${senderName}`);
+      }
+      if (amount !== undefined && Number(amount) !== Number(t.amount)) {
+        changes.push(`المبلغ الكلي: ${Number(t.amount).toLocaleString("ar-LY")} ← ${Number(amount).toLocaleString("ar-LY")} د.ل`);
+      }
+      if (paidAmount !== undefined && Number(paidAmount) !== Number(t.paidAmount)) {
+        changes.push(`المسدد: ${Number(t.paidAmount).toLocaleString("ar-LY")} ← ${Number(paidAmount).toLocaleString("ar-LY")} د.ل`);
+      }
 
-    const changesText = changes.length > 0 ? changes.join("\n") : "لا توجد تغييرات";
-    const editBody = `تم تعديل قيمة ${senderName ?? t.senderName}\n\nالتغييرات:\n${changesText}\n\nالتاريخ: ${dateStr} | ${timeStr}`;
+      const changesText = changes.length > 0 ? changes.join("\n") : "لا توجد تغييرات";
+      const editBody = `تم تعديل قيمة ${senderName ?? t.senderName}\n\nالتغييرات:\n${changesText}\n\nالتاريخ: ${dateStr} | ${timeStr}`;
 
-    await db.insert(notificationsTable).values([
-      { id: generateId(), userId: "muataz", transactionId: t.id, title: editTitle, body: editBody, isRead: false, createdAt: now },
-    ]);
+      await db.insert(notificationsTable).values([
+        { id: generateId(), userId: "muataz", transactionId: t.id, title: "✏️ تم تعديل قيمة", body: editBody, isRead: false, createdAt: now },
+      ]);
+    } else if (paidAmount !== undefined && Number(paidAmount) !== Number(t.paidAmount)) {
+      const supplementBody = `تم إضافة مبلغ إضافي لقيمة ${t.senderName}\nالمسدد الجديد: ${Number(paidAmount).toLocaleString("ar-LY")} د.ل\nالتاريخ: ${dateStr} | ${timeStr}`;
+      await db.insert(notificationsTable).values([
+        { id: generateId(), userId: "muataz", transactionId: t.id, title: "💰 تكملة قيمة", body: supplementBody, isRead: false, createdAt: now },
+      ]);
+    }
 
     const [updated] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, req.params.id));
     res.json(mapTransaction(updated));
@@ -185,7 +204,7 @@ router.patch("/:id", async (req, res) => {
 
 router.post("/:id/confirm", async (req, res) => {
   try {
-    const { confirmedByUserId, confirmedByName, confirmationNotes } = req.body;
+    const { confirmedByUserId, confirmedByName, confirmationNotes, confirmationAttachment } = req.body;
     const now = new Date();
 
     const [t] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, req.params.id));
@@ -198,6 +217,7 @@ router.post("/:id/confirm", async (req, res) => {
       confirmedByName,
       confirmedAt: now,
       confirmationNotes: confirmationNotes ?? null,
+      confirmationAttachment: confirmationAttachment ?? null,
       updatedAt: now,
     }).where(eq(transactionsTable.id, req.params.id));
 

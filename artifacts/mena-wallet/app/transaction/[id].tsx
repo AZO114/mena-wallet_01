@@ -3,10 +3,12 @@ import {
   ArrowLeft,
   BadgeDollarSign,
   CalendarDays,
+  Camera,
   CheckCircle,
   Clock,
   Edit2,
   FileText,
+  Image as ImageIcon,
   MessageSquare,
   Trash2,
   User,
@@ -14,12 +16,15 @@ import {
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Animated,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -33,6 +38,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
+import { useLanguage } from "@/context/LanguageContext";
 
 function formatAmount(amount: number): string {
   return amount.toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
@@ -48,15 +54,34 @@ function formatTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString("ar-LY", { hour: "2-digit", minute: "2-digit" });
 }
 
+async function pickAndCompressImage(): Promise<string | null> {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    quality: 0.7,
+  });
+  if (result.canceled || !result.assets[0]) return null;
+  const uri = result.assets[0].uri;
+  const compressed = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ resize: { width: 800 } }],
+    { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+  );
+  return compressed.base64 ? `data:image/jpeg;base64,${compressed.base64}` : null;
+}
+
 export default function TransactionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, transactions, confirmTransaction, deleteTransaction } = useApp();
   const C = useTheme();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmationNotes, setConfirmationNotes] = useState("");
+  const [confirmationImage, setConfirmationImage] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const transaction = useMemo(
@@ -76,7 +101,7 @@ export default function TransactionDetailScreen() {
         <AlertCircle size={48} color={C.textMuted} />
         <Text style={[styles.notFoundText, { color: C.textSecondary }]}>المعاملة غير موجودة</Text>
         <Pressable style={[styles.backBtn, { backgroundColor: C.tint }]} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>رجوع</Text>
+          <Text style={styles.backBtnText}>{t("back")}</Text>
         </Pressable>
       </View>
     );
@@ -90,15 +115,32 @@ export default function TransactionDetailScreen() {
   const paidRatio = transaction.amount > 0 ? transaction.paidAmount / transaction.amount : 0;
   const remaining = transaction.amount - transaction.paidAmount;
 
+  const handlePickConfirmImage = async () => {
+    setImageLoading(true);
+    try {
+      const base64 = await pickAndCompressImage();
+      if (base64) setConfirmationImage(base64);
+    } catch {
+      // ignore
+    } finally {
+      setImageLoading(false);
+    }
+  };
+
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      await confirmTransaction(transaction.id, confirmationNotes.trim() || undefined);
+      await confirmTransaction(
+        transaction.id,
+        confirmationNotes.trim() || undefined,
+        confirmationImage ?? undefined
+      );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setShowConfirmModal(false);
       setConfirmationNotes("");
+      setConfirmationImage(null);
     } catch (e: any) {
-      Alert.alert("خطأ", e.message || "فشل التأكيد");
+      Alert.alert(t("error"), e.message || "فشل التأكيد");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -118,7 +160,7 @@ export default function TransactionDetailScreen() {
         if (Platform.OS === "web") {
           window.alert(e.message || "فشل الحذف");
         } else {
-          Alert.alert("خطأ", e.message || "فشل الحذف");
+          Alert.alert(t("error"), e.message || "فشل الحذف");
         }
       } finally {
         setLoading(false);
@@ -136,8 +178,8 @@ export default function TransactionDetailScreen() {
       "تأكيد الحذف",
       message,
       [
-        { text: "إلغاء", style: "cancel" },
-        { text: "حذف", style: "destructive", onPress: performDelete },
+        { text: t("cancel"), style: "cancel" },
+        { text: t("delete"), style: "destructive", onPress: performDelete },
       ]
     );
   };
@@ -172,7 +214,7 @@ export default function TransactionDetailScreen() {
         <Pressable style={[styles.headerIconBtn, { backgroundColor: C.surfaceSecondary }]} onPress={() => router.back()}>
           <ArrowLeft size={22} color={C.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: C.text }]}>تفاصيل القيمة</Text>
+        <Text style={[styles.headerTitle, { color: C.text }]}>{t("transactionDetails")}</Text>
         <View style={styles.headerActions}>
           {canEdit && (
             <Pressable
@@ -220,11 +262,11 @@ export default function TransactionDetailScreen() {
             </View>
             <Text style={[styles.heroAmount, { color: isPending ? C.warning : C.success }]}>
               {formatAmount(transaction.amount)}{" "}
-              <Text style={[styles.heroCurrency, { color: isPending ? C.warning : C.success }]}>د.ل</Text>
+              <Text style={[styles.heroCurrency, { color: isPending ? C.warning : C.success }]}>{t("lyD")}</Text>
             </Text>
             <View style={[styles.heroStatusBadge, { backgroundColor: isPending ? C.pendingBg : C.receivedBg }]}>
               <Text style={[styles.heroStatusText, { color: isPending ? C.warning : C.success }]}>
-                {isPending ? "● معلقة" : "● مستلمة"}
+                {isPending ? `● ${t("pending")}` : `● ${t("received")}`}
               </Text>
             </View>
 
@@ -233,17 +275,17 @@ export default function TransactionDetailScreen() {
                 <View style={styles.heroPaidRow}>
                   <View style={styles.heroPaidStat}>
                     <Text style={[styles.heroPaidValue, { color: C.success }]}>{formatAmount(transaction.paidAmount)}</Text>
-                    <Text style={[styles.heroPaidLabel, { color: C.textSecondary }]}>المسدد</Text>
+                    <Text style={[styles.heroPaidLabel, { color: C.textSecondary }]}>{t("paid")}</Text>
                   </View>
                   <View style={[styles.heroPaidSep, { backgroundColor: C.border }]} />
                   <View style={styles.heroPaidStat}>
                     <Text style={[styles.heroPaidValue, { color: remaining > 0 ? C.danger : C.success }]}>{formatAmount(remaining)}</Text>
-                    <Text style={[styles.heroPaidLabel, { color: C.textSecondary }]}>المتبقي</Text>
+                    <Text style={[styles.heroPaidLabel, { color: C.textSecondary }]}>{t("remaining")}</Text>
                   </View>
                   <View style={[styles.heroPaidSep, { backgroundColor: C.border }]} />
                   <View style={styles.heroPaidStat}>
                     <Text style={[styles.heroPaidValue, { color: C.tint }]}>{Math.round(paidRatio * 100)}%</Text>
-                    <Text style={[styles.heroPaidLabel, { color: C.textSecondary }]}>نسبة السداد</Text>
+                    <Text style={[styles.heroPaidLabel, { color: C.textSecondary }]}>{t("paymentRate")}</Text>
                   </View>
                 </View>
                 <View style={[styles.heroProgressTrack, { backgroundColor: C.border }]}>
@@ -257,57 +299,87 @@ export default function TransactionDetailScreen() {
           </LinearGradient>
 
           <View style={[styles.detailsCard, { backgroundColor: C.surface }]}>
-            <Text style={[styles.sectionTitle, { color: C.text }]}>تفاصيل المعاملة</Text>
-            <InfoRow icon={<User size={16} color={C.tint} />} label="صاحب القيمة" value={transaction.senderName} />
-            <InfoRow icon={<Users size={16} color={C.tint} />} label="المستقبل" value={transaction.recipientName} />
+            <Text style={[styles.sectionTitle, { color: C.text }]}>{t("transactionDetails")}</Text>
+            <InfoRow icon={<User size={16} color={C.tint} />} label={t("valueOwner")} value={transaction.senderName} />
+            <InfoRow icon={<Users size={16} color={C.tint} />} label={t("recipientLabel")} value={transaction.recipientName} />
             <InfoRow
               icon={<BadgeDollarSign size={16} color={C.success} />}
-              label="المسدد"
-              value={`${formatAmount(transaction.paidAmount)} د.ل`}
+              label={t("paid")}
+              value={`${formatAmount(transaction.paidAmount)} ${t("lyD")}`}
               valueColor={C.success}
             />
             <InfoRow
               icon={<BadgeDollarSign size={16} color={C.danger} />}
-              label="المتبقي"
-              value={`${formatAmount(remaining)} د.ل`}
+              label={t("remaining")}
+              value={`${formatAmount(remaining)} ${t("lyD")}`}
               valueColor={remaining > 0 ? C.danger : C.success}
             />
             <InfoRow
               icon={<CalendarDays size={16} color={C.textSecondary} />}
-              label="تاريخ الإضافة"
+              label={t("addedDate")}
               value={`${formatDate(transaction.createdAt)} · ${formatTime(transaction.createdAt)}`}
             />
             {transaction.notes && (
               <InfoRow
                 icon={<FileText size={16} color={C.textSecondary} />}
-                label="ملاحظات"
+                label={t("notes")}
                 value={transaction.notes}
               />
+            )}
+            {transaction.notesAttachment && (
+              <View style={[styles.attachmentRow, { borderBottomColor: C.border }]}>
+                <View style={styles.infoLeft}>
+                  <View style={[styles.infoIcon, { backgroundColor: C.surfaceSecondary }]}>
+                    <ImageIcon size={16} color={C.textSecondary} />
+                  </View>
+                  <Text style={[styles.infoLabel, { color: C.textSecondary }]}>{t("attachment")}</Text>
+                </View>
+                <Image
+                  source={{ uri: transaction.notesAttachment }}
+                  style={styles.attachmentThumb}
+                  resizeMode="cover"
+                />
+              </View>
             )}
           </View>
 
           {!isPending && (
             <View style={[styles.detailsCard, { backgroundColor: C.surface }]}>
-              <Text style={[styles.sectionTitle, { color: C.text }]}>تفاصيل الاستلام</Text>
+              <Text style={[styles.sectionTitle, { color: C.text }]}>{t("receiptDetails")}</Text>
               <InfoRow
                 icon={<User size={16} color={C.success} />}
-                label="استلم بواسطة"
+                label={t("receivedBy")}
                 value={transaction.confirmedByName ?? "غير معروف"}
                 valueColor={C.success}
               />
               {transaction.confirmedAt && (
                 <InfoRow
                   icon={<CalendarDays size={16} color={C.textSecondary} />}
-                  label="وقت الاستلام"
+                  label={t("receiptTime")}
                   value={`${formatDate(transaction.confirmedAt)} · ${formatTime(transaction.confirmedAt)}`}
                 />
               )}
               {transaction.confirmationNotes && (
                 <InfoRow
                   icon={<MessageSquare size={16} color={C.textSecondary} />}
-                  label="ملاحظة الاستلام"
+                  label={t("receiptNote")}
                   value={transaction.confirmationNotes}
                 />
+              )}
+              {transaction.confirmationAttachment && (
+                <View style={[styles.attachmentRow, { borderBottomColor: C.border }]}>
+                  <View style={styles.infoLeft}>
+                    <View style={[styles.infoIcon, { backgroundColor: C.surfaceSecondary }]}>
+                      <ImageIcon size={16} color={C.success} />
+                    </View>
+                    <Text style={[styles.infoLabel, { color: C.textSecondary }]}>{t("receiptAttachment")}</Text>
+                  </View>
+                  <Image
+                    source={{ uri: transaction.confirmationAttachment }}
+                    style={styles.attachmentThumb}
+                    resizeMode="cover"
+                  />
+                </View>
               )}
             </View>
           )}
@@ -334,7 +406,7 @@ export default function TransactionDetailScreen() {
             onPress={() => setShowConfirmModal(true)}
           >
             <CheckCircle size={22} color="#fff" />
-            <Text style={styles.confirmBtnText}>تأكيد الاستلام</Text>
+            <Text style={styles.confirmBtnText}>{t("confirmReceipt")}</Text>
           </Pressable>
         </View>
       )}
@@ -351,16 +423,16 @@ export default function TransactionDetailScreen() {
             <View style={[styles.modalIconBg, { backgroundColor: C.isDark ? "#064E3B33" : "#ECFDF5" }]}>
               <CheckCircle size={28} color={C.success} />
             </View>
-            <Text style={[styles.modalTitle, { color: C.text }]}>تأكيد استلام القيمة</Text>
+            <Text style={[styles.modalTitle, { color: C.text }]}>{t("confirmReceiptTitle")}</Text>
             <View style={[styles.modalAmountBox, { backgroundColor: C.isDark ? "#064E3B22" : "#F0FDF4" }]}>
               <Text style={[styles.modalSenderName, { color: C.text }]}>{transaction.senderName}</Text>
               <Text style={[styles.modalAmount, { color: C.success }]}>
-                {formatAmount(transaction.amount)} <Text style={{ fontSize: 16 }}>د.ل</Text>
+                {formatAmount(transaction.amount)} <Text style={{ fontSize: 16 }}>{t("lyD")}</Text>
               </Text>
             </View>
 
             <View style={styles.noteField}>
-              <Text style={[styles.noteLabel, { color: C.text }]}>ملاحظة الاستلام (اختياري)</Text>
+              <Text style={[styles.noteLabel, { color: C.text }]}>{t("receiptNoteOptional")}</Text>
               <TextInput
                 style={[
                   styles.noteInput,
@@ -377,12 +449,51 @@ export default function TransactionDetailScreen() {
               />
             </View>
 
+            <View style={styles.imagePickerSection}>
+              <Text style={[styles.noteLabel, { color: C.text }]}>{t("attachReceiptImage")}</Text>
+              {confirmationImage ? (
+                <View style={styles.imagePreviewWrap}>
+                  <Image source={{ uri: confirmationImage }} style={styles.modalImagePreview} resizeMode="cover" />
+                  <View style={styles.imageOverlayBtns}>
+                    <Pressable
+                      style={[styles.imageOverlayBtn, { backgroundColor: C.tint }]}
+                      onPress={handlePickConfirmImage}
+                    >
+                      <Camera size={14} color="#fff" />
+                      <Text style={styles.imageOverlayBtnText}>{t("changeImage")}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.imageOverlayBtn, { backgroundColor: C.danger }]}
+                      onPress={() => setConfirmationImage(null)}
+                    >
+                      <Trash2 size={14} color="#fff" />
+                      <Text style={styles.imageOverlayBtnText}>{t("removeImage")}</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  style={[styles.modalImagePickerBtn, { borderColor: C.border, backgroundColor: C.surfaceSecondary }]}
+                  onPress={handlePickConfirmImage}
+                  disabled={imageLoading}
+                >
+                  {imageLoading
+                    ? <ActivityIndicator color={C.tint} size="small" />
+                    : <>
+                        <ImageIcon size={18} color={C.tint} />
+                        <Text style={[styles.modalImagePickerText, { color: C.tint }]}>{t("attachReceiptImage")}</Text>
+                      </>
+                  }
+                </Pressable>
+              )}
+            </View>
+
             <View style={styles.modalActions}>
               <Pressable
                 style={[styles.modalCancelBtn, { backgroundColor: C.surfaceSecondary }]}
-                onPress={() => { setShowConfirmModal(false); setConfirmationNotes(""); }}
+                onPress={() => { setShowConfirmModal(false); setConfirmationNotes(""); setConfirmationImage(null); }}
               >
-                <Text style={[styles.modalCancelText, { color: C.textSecondary }]}>إلغاء</Text>
+                <Text style={[styles.modalCancelText, { color: C.textSecondary }]}>{t("cancel")}</Text>
               </Pressable>
               <Pressable
                 style={[styles.modalConfirmBtn, { backgroundColor: C.success, shadowColor: C.success }]}
@@ -391,7 +502,7 @@ export default function TransactionDetailScreen() {
               >
                 {loading
                   ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.modalConfirmText}>تأكيد الاستلام</Text>}
+                  : <Text style={styles.modalConfirmText}>{t("confirmReceipt")}</Text>}
               </Pressable>
             </View>
           </View>
@@ -440,6 +551,11 @@ const styles = StyleSheet.create({
   infoIcon: { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center" },
   infoLabel: { fontSize: 14, fontFamily: "Inter_400Regular" },
   infoValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", textAlign: "right", flex: 1, marginLeft: 8 },
+  attachmentRow: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingVertical: 11, borderBottomWidth: 1,
+  },
+  attachmentThumb: { width: 80, height: 60, borderRadius: 8 },
   actionBar: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1 },
   confirmBtn: {
     borderRadius: 16, paddingVertical: 18, flexDirection: "row",
@@ -453,7 +569,7 @@ const styles = StyleSheet.create({
   backBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
   modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" },
   modalContent: {
-    borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 16,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 14,
     alignItems: "center",
     shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1, shadowRadius: 16, elevation: 10,
@@ -468,9 +584,24 @@ const styles = StyleSheet.create({
   noteLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   noteInput: {
     borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14,
-    paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular", minHeight: 80,
+    paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular", minHeight: 70,
     width: "100%",
   },
+  imagePickerSection: { gap: 8, width: "100%" },
+  modalImagePickerBtn: {
+    borderWidth: 1.5, borderRadius: 12, borderStyle: "dashed",
+    paddingVertical: 14, flexDirection: "row", alignItems: "center",
+    justifyContent: "center", gap: 8, width: "100%",
+  },
+  modalImagePickerText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  imagePreviewWrap: { borderRadius: 12, overflow: "hidden", width: "100%" },
+  modalImagePreview: { width: "100%", height: 150 },
+  imageOverlayBtns: { flexDirection: "row", gap: 8, padding: 8 },
+  imageOverlayBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 5, borderRadius: 8, paddingVertical: 7,
+  },
+  imageOverlayBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
   modalActions: { flexDirection: "row", gap: 10, width: "100%" },
   modalCancelBtn: { flex: 1, borderRadius: 14, paddingVertical: 16, alignItems: "center" },
   modalCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
