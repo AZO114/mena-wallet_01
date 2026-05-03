@@ -1,8 +1,6 @@
 import { ResizeMode, Video } from "expo-av";
 import React, { useRef } from "react";
-import { Dimensions, StyleSheet, View } from "react-native";
-
-const { width: W, height: H } = Dimensions.get("window");
+import { StyleSheet, View } from "react-native";
 
 interface AnimatedSplashProps {
   onFinish: () => void;
@@ -17,7 +15,7 @@ export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
         ref={videoRef}
         source={require("../assets/splash-logo.mp4")}
         style={styles.video}
-        resizeMode={ResizeMode.COVER}
+        resizeMode={ResizeMode.CONTAIN}
         shouldPlay
         isLooping={false}
         isMuted
@@ -34,14 +32,15 @@ export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    width: W,
-    height: H,
     backgroundColor: "#000",
     justifyContent: "center",
     alignItems: "center",
   },
   video: {
-    width: W,
-    height: H,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
 });
