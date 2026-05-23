@@ -2,7 +2,7 @@ import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
 import { Icon, Label, NativeTabs, Badge } from "expo-router/unstable-native-tabs";
-import { BarChart2, Bell, Bot, Home, List } from "lucide-react-native";
+import { BarChart2, Bell, Home, List } from "lucide-react-native";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 
@@ -29,10 +29,6 @@ function NativeTabLayout() {
       <NativeTabs.Trigger name="reports">
         <Icon sf={{ default: "chart.bar", selected: "chart.bar.fill" }} />
         <Label>التقارير</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="ai">
-        <Icon sf={{ default: "brain", selected: "brain.fill" }} />
-        <Label>Mena AI</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -105,8 +101,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="ai"
         options={{
-          title: "Mena AI",
-          tabBarIcon: ({ color }) => <Bot size={22} color={color} />,
+          href: null,
         }}
       />
     </Tabs>

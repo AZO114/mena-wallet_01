@@ -13,9 +13,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useApp, type User } from "@/context/AppContext";
+import { useApp } from "@/context/AppContext";
 import { useTheme } from "@/context/ThemeContext";
-import WelcomeOverlay from "@/components/WelcomeOverlay";
 
 export default function LoginScreen() {
   const { user, isLoading, login } = useApp();
@@ -24,16 +23,15 @@ export default function LoginScreen() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
-  const [welcomeUser, setWelcomeUser] = useState<User | null>(null);
   const insets = useSafeAreaInsets();
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (user && !isLoading && !welcomeUser) {
+    if (user && !isLoading) {
       router.replace("/(tabs)");
     }
-  }, [user, isLoading, welcomeUser]);
+  }, [user, isLoading]);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -51,7 +49,7 @@ export default function LoginScreen() {
     );
   }
 
-  if (user && !welcomeUser) return null;
+  if (user) return null;
 
   const shake = () => {
     Animated.sequence([
@@ -72,8 +70,8 @@ export default function LoginScreen() {
     setLoading(true);
     setError("");
     try {
-      const loggedIn = await login(pin.trim());
-      setWelcomeUser(loggedIn);
+      await login(pin.trim());
+      router.replace("/(tabs)");
     } catch (e: any) {
       setError(e.message || "رمز خاطئ");
       shake();
@@ -164,16 +162,6 @@ export default function LoginScreen() {
         </Text>
       </Animated.View>
 
-      {welcomeUser && (
-        <WelcomeOverlay
-          name={welcomeUser.name}
-          userId={welcomeUser.userId}
-          onFinish={() => {
-            setWelcomeUser(null);
-            router.replace("/(tabs)");
-          }}
-        />
-      )}
     </View>
   );
 }

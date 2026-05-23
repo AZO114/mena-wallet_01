@@ -1,4 +1,4 @@
-import { Bell, Bot, CheckCircle, ClipboardList, Clock, Languages, LogOut, Moon, PlusCircle, Sun, TrendingUp } from "lucide-react-native";
+import { Bell, CheckCircle, ClipboardList, Clock, Languages, LogOut, Moon, PlusCircle, Sun, TrendingUp } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect } from "react";
@@ -171,43 +171,16 @@ export default function HomeScreen() {
       </View>
 
       {isSender && (
-        <View style={styles.actionsRow}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.addButton,
-              { backgroundColor: C.tint, shadowColor: C.tint, flex: 1 },
-              pressed && styles.btnPressed,
-            ]}
-            onPress={() => router.push("/add-transaction")}
-          >
-            <PlusCircle size={21} color="#fff" />
-            <Text style={styles.addButtonText}>{t("addValue")}</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.aiButton,
-              { backgroundColor: C.surface, borderColor: C.border },
-              pressed && styles.btnPressed,
-            ]}
-            onPress={() => router.push("/(tabs)/ai")}
-          >
-            <Bot size={21} color={C.tint} />
-            <Text style={[styles.aiButtonText, { color: C.tint }]}>{t("aiAssistant")}</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {!isSender && (
         <Pressable
           style={({ pressed }) => [
-            styles.aiButtonFull,
-            { backgroundColor: C.surface, borderColor: C.border },
+            styles.addButton,
+            { backgroundColor: C.tint, shadowColor: C.tint },
             pressed && styles.btnPressed,
           ]}
-          onPress={() => router.push("/(tabs)/ai")}
+          onPress={() => router.push("/add-transaction")}
         >
-          <Bot size={21} color={C.tint} />
-          <Text style={[styles.aiButtonText, { color: C.tint }]}>{t("aiAssistantFull")}</Text>
+          <PlusCircle size={21} color="#fff" />
+          <Text style={styles.addButtonText}>{t("addValue")}</Text>
         </Pressable>
       )}
 
@@ -338,24 +311,12 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
   statAmount: { fontSize: 20, fontFamily: "Inter_700Bold" },
   statCurrency: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: -4 },
-  actionsRow: { flexDirection: "row", gap: 10 },
   addButton: {
     borderRadius: 16, paddingVertical: 15, flexDirection: "row",
     alignItems: "center", justifyContent: "center", gap: 8,
     shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
   },
   addButtonText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
-  aiButton: {
-    borderRadius: 16, paddingVertical: 15, flexDirection: "row",
-    alignItems: "center", justifyContent: "center", gap: 8,
-    borderWidth: 1.5, paddingHorizontal: 16,
-  },
-  aiButtonFull: {
-    borderRadius: 16, paddingVertical: 15, flexDirection: "row",
-    alignItems: "center", justifyContent: "center", gap: 8,
-    borderWidth: 1.5,
-  },
-  aiButtonText: { fontSize: 15, fontFamily: "Inter_700Bold" },
   btnPressed: { opacity: 0.88, transform: [{ scale: 0.97 }] },
   section: { gap: 10 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

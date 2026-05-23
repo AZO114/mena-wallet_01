@@ -384,7 +384,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const interval = setInterval(() => {
         fetchTransactions();
         fetchNotifications();
-      }, 15000);
+      }, 45000);
       return () => clearInterval(interval);
     }
   }, [user, fetchTransactions, fetchNotifications]);

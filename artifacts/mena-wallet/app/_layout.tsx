@@ -8,7 +8,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -17,11 +17,17 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { LanguageProvider } from "@/context/LanguageContext";
-import AnimatedSplash from "@/components/AnimatedSplash";
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30000,
+      gcTime: 300000,
+    },
+  },
+});
 
 function RootLayoutNav() {
   return (
@@ -52,8 +58,6 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
-  const [splashDone, setSplashDone] = useState(false);
-
   const appReady = fontsLoaded || !!fontError;
 
   useEffect(() => {
@@ -63,14 +67,6 @@ export default function RootLayout() {
   }, [appReady]);
 
   if (!appReady) return null;
-
-  if (!splashDone) {
-    return (
-      <SafeAreaProvider>
-        <AnimatedSplash onFinish={() => setSplashDone(true)} />
-      </SafeAreaProvider>
-    );
-  }
 
   return (
     <SafeAreaProvider>
