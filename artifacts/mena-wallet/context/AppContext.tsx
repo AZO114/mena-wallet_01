@@ -73,7 +73,7 @@ export interface AiMessage {
 interface AppContextValue {
   user: User | null;
   isLoading: boolean;
-  login: (pin: string) => Promise<void>;
+  login: (pin: string) => Promise<User>;
   logout: () => Promise<void>;
   transactions: Transaction[];
   notifications: Notification[];
@@ -194,7 +194,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const login = useCallback(async (pin: string) => {
+  const login = useCallback(async (pin: string): Promise<User> => {
     const res = await fetch(`${BASE_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -207,6 +207,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const data: User = await res.json();
     await AsyncStorage.setItem("@mena_user", JSON.stringify(data));
     setUser(data);
+    return data;
   }, []);
 
   const logout = useCallback(async () => {

@@ -1,12 +1,12 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { transactionsTable, notificationsTable } from "@workspace/db";
+import { transactionsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const MODEL = "gpt-4o-mini";
 
 function fmt(n: number) {
   return n.toLocaleString("ar-LY", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
@@ -25,7 +25,6 @@ async function getDbContext(): Promise<string> {
   const totalPending = pending.reduce((sum, t) => sum + Number(t.amount), 0);
   const totalReceived = received.reduce((sum, t) => sum + Number(t.amount), 0);
 
-  // Per-recipient stats
   const byRecipient: Record<string, { count: number; amount: number; paid: number; pending: number }> = {};
   for (const t of transactions) {
     const r = t.recipientName || "غير محدد";
@@ -39,7 +38,6 @@ async function getDbContext(): Promise<string> {
     .map(([name, s]) => `  • ${name}: ${s.count} معاملة | إجمالي ${fmt(s.amount)} د.ل | مسدد ${fmt(s.paid)} د.ل | معلق ${fmt(s.pending)} د.ل`)
     .join("\n");
 
-  // Full transaction list
   const txLines = transactions.map((t, i) => {
     const status = t.status === "pending" ? "⏳ معلقة" : "✅ مستلمة";
     const remaining = Number(t.amount) - Number(t.paidAmount);
@@ -51,7 +49,7 @@ async function getDbContext(): Promise<string> {
    تاريخ الإنشاء: ${fmtDate(t.createdAt)}`;
     if (t.confirmedByName) line += `\n   تأكيد الاستلام بواسطة: ${t.confirmedByName}`;
     if (t.confirmedAt) line += ` في ${fmtDate(t.confirmedAt)}`;
-    if (t.notes) line += `\n   ملاحظة المرسل: ${t.notes}`;
+    if (t.notes) line += `\n   ملاحظة: ${t.notes}`;
     if (t.confirmationNotes) line += `\n   ملاحظة الاستلام: ${t.confirmationNotes}`;
     return line;
   }).join("\n\n");
@@ -66,15 +64,12 @@ async function getDbContext(): Promise<string> {
   return `أنت مساعد ذكي متخصص لشركة MENA Express لإدارة القيم المالية.
 التاريخ والوقت الحالي: ${now}
 
-⚠️ قواعد صارمة يجب اتباعها دائماً:
-1. إجاباتك عن أي سؤال يخص البيانات (معاملات، أشخاص، مبالغ، تواريخ) يجب أن تأتي فقط من البيانات المقدمة أدناه — لا من معلومات عامة.
-2. إذا سألك المستخدم "من آخر حد استلم قيمة؟" → ابحث في قائمة المعاملات الكاملة وأعطِه الإجابة الدقيقة من البيانات.
-3. إذا سألك عن مبلغ أو شخص أو تاريخ → اقرأ البيانات المقدمة واستخرج الرقم الدقيق.
-4. لا تخترع أي معلومة ولا تعطِ أرقاماً تقريبية — الأرقام الموجودة في البيانات هي الصحيحة.
-5. أجب بالعربية دائماً بشكل واضح ومباشر.
-6. يمكنك تحليل الصور والمستندات إذا أُرسلت إليك.
-
-فيما يلي البيانات الكاملة والحالية للنظام — هذه هي مصدر الحقيقة الوحيد:
+⚠️ قواعد صارمة:
+1. إجاباتك عن أي سؤال يخص البيانات تأتي فقط من البيانات أدناه.
+2. إذا سُئلت عن شخص أو مبلغ أو تاريخ → اقرأ البيانات واستخرج الرقم الدقيق.
+3. لا تخترع أي معلومة.
+4. أجب بالعربية دائماً بشكل واضح ومباشر.
+5. يمكنك تحليل الصور والمستندات إذا أُرسلت إليك.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📊 الإحصائيات الإجمالية (${transactions.length} معاملة):
@@ -82,11 +77,11 @@ async function getDbContext(): Promise<string> {
 - القيم المعلقة: ${fmt(totalPending)} د.ل (${pending.length} معاملة)
 - القيم المستلمة: ${fmt(totalReceived)} د.ل (${received.length} معاملة)
 - إجمالي المسدد: ${fmt(totalPaid)} د.ل
-- المتبقي غير المسدد: ${fmt(totalAmount - totalPaid)} د.ل
+- المتبقي: ${fmt(totalAmount - totalPaid)} د.ل
 - نسبة الاستلام: ${transactions.length > 0 ? ((received.length / transactions.length) * 100).toFixed(1) : 0}%
 
 ━━━━━━━━━━━━━━━━━━━━━━
-🔴 آخر معاملة مسجلة:
+🔴 آخر معاملة:
 ${lastTxSummary}
 
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -94,12 +89,12 @@ ${lastTxSummary}
 ${recipientStats}
 
 ━━━━━━━━━━━━━━━━━━━━━━
-📋 قائمة جميع المعاملات (من الأحدث للأقدم):
+📋 جميع المعاملات (من الأحدث للأقدم):
 
 ${txLines}
 
 ━━━━━━━━━━━━━━━━━━━━━━
-المستخدمون في النظام:
+المستخدمون:
 - معتز الورفلي (مرسل): يضيف القيم
 - سلوان عباس (مستقبل): يستلم ويؤكد
 - ريان عباس (مستقبل): يستلم ويؤكد
@@ -108,8 +103,8 @@ ${txLines}
 
 router.post("/chat", async (req, res) => {
   try {
-    if (!OPENROUTER_API_KEY) {
-      res.status(500).json({ error: "OPENROUTER_API_KEY not configured" });
+    if (!OPENAI_API_KEY) {
+      res.status(500).json({ error: "OPENAI_API_KEY not configured" });
       return;
     }
 
@@ -122,16 +117,14 @@ router.post("/chat", async (req, res) => {
     const systemContext = await getDbContext();
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120_000);
+    const timeout = setTimeout(() => controller.abort(), 90_000);
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       signal: controller.signal,
       headers: {
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://mena-wallet.replit.app",
-        "X-Title": "Mena AI Assistant",
       },
       body: JSON.stringify({
         model: MODEL,
@@ -140,7 +133,7 @@ router.post("/chat", async (req, res) => {
           ...messages,
         ],
         max_tokens: 2048,
-        temperature: 0.7,
+        temperature: 0.6,
       }),
     });
 
@@ -148,18 +141,18 @@ router.post("/chat", async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("OpenRouter error:", errText);
+      console.error("OpenAI error:", errText);
       let errMsg = "AI service error";
       try {
         const errJson = JSON.parse(errText);
-        if (response.status === 429 || errJson?.error?.code === 429) {
-          errMsg = "rate limit: " + (errJson?.error?.metadata?.raw || "too many requests");
+        if (response.status === 429) {
+          errMsg = "rate limit: too many requests";
           res.status(429).json({ error: errMsg });
           return;
         }
         errMsg = errJson?.error?.message || errMsg;
       } catch {}
-      res.status(502).json({ error: errMsg, details: errText });
+      res.status(502).json({ error: errMsg });
       return;
     }
 
@@ -173,8 +166,8 @@ router.post("/chat", async (req, res) => {
     });
   } catch (err: any) {
     console.error("AI chat error:", err);
-    if (err?.name === "AbortError" || err?.code === "UND_ERR_HEADERS_TIMEOUT") {
-      res.status(504).json({ error: "انتهى وقت الانتظار — الـ AI يعالج الصور بوقت أطول، حاول مرة أخرى" });
+    if (err?.name === "AbortError") {
+      res.status(504).json({ error: "انتهى وقت الانتظار — حاول مرة أخرى" });
       return;
     }
     res.status(500).json({ error: "Server error" });

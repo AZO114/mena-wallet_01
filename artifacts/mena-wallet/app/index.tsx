@@ -13,8 +13,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useApp } from "@/context/AppContext";
+import { useApp, type User } from "@/context/AppContext";
 import { useTheme } from "@/context/ThemeContext";
+import WelcomeOverlay from "@/components/WelcomeOverlay";
 
 export default function LoginScreen() {
   const { user, isLoading, login } = useApp();
@@ -23,15 +24,16 @@ export default function LoginScreen() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
+  const [welcomeUser, setWelcomeUser] = useState<User | null>(null);
   const insets = useSafeAreaInsets();
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (user && !isLoading) {
+    if (user && !isLoading && !welcomeUser) {
       router.replace("/(tabs)");
     }
-  }, [user, isLoading]);
+  }, [user, isLoading, welcomeUser]);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -49,7 +51,7 @@ export default function LoginScreen() {
     );
   }
 
-  if (user) return null;
+  if (user && !welcomeUser) return null;
 
   const shake = () => {
     Animated.sequence([
@@ -70,8 +72,8 @@ export default function LoginScreen() {
     setLoading(true);
     setError("");
     try {
-      await login(pin.trim());
-      router.replace("/(tabs)");
+      const loggedIn = await login(pin.trim());
+      setWelcomeUser(loggedIn);
     } catch (e: any) {
       setError(e.message || "رمز خاطئ");
       shake();
@@ -161,6 +163,17 @@ export default function LoginScreen() {
           © 2025 Mena Wallet · تم تطويره بواسطة المهندس معتز الورفلي
         </Text>
       </Animated.View>
+
+      {welcomeUser && (
+        <WelcomeOverlay
+          name={welcomeUser.name}
+          userId={welcomeUser.userId}
+          onFinish={() => {
+            setWelcomeUser(null);
+            router.replace("/(tabs)");
+          }}
+        />
+      )}
     </View>
   );
 }

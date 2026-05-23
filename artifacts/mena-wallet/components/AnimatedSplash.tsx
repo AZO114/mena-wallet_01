@@ -24,6 +24,8 @@ export default function AnimatedSplash({ onFinish }: Props) {
   const lineScaleX  = useRef(new Animated.Value(0)).current;
   const tagOp       = useRef(new Animated.Value(0)).current;
   const tagY        = useRef(new Animated.Value(10)).current;
+  const welcomeOp   = useRef(new Animated.Value(0)).current;
+  const welcomeSc   = useRef(new Animated.Value(0.82)).current;
   const dotOp       = [
     useRef(new Animated.Value(0)).current,
     useRef(new Animated.Value(0)).current,
@@ -77,24 +79,30 @@ export default function AnimatedSplash({ onFinish }: Props) {
         }),
       ]),
 
-      // 5. Dots appear
+      // 5. Welcome text appears
+      Animated.parallel([
+        Animated.timing(welcomeOp, { toValue: 1, duration: 550, useNativeDriver: true }),
+        Animated.spring(welcomeSc, { toValue: 1, friction: 5, tension: 50, useNativeDriver: true }),
+      ]),
+
+      // 6. Dots appear
       Animated.stagger(120, dotOp.map(d =>
         Animated.timing(d, { toValue: 0.35, duration: 250, useNativeDriver: true })
       )),
 
-      // 6. Hold
-      Animated.delay(1000),
+      // 7. Hold
+      Animated.delay(1200),
 
-      // 7. Screen fades out
+      // 8. Screen fades out
       Animated.timing(screenOp, { toValue: 0, duration: 550, useNativeDriver: true }),
     ]).start(() => onFinish());
 
-    // Start dot pulsing after they fade in (≈ step 5 timing)
+    // Start dot pulsing after they fade in
     setTimeout(() => {
       pulseDot(dotOp[0], 0).start();
       pulseDot(dotOp[1], 180).start();
       pulseDot(dotOp[2], 360).start();
-    }, 2600);
+    }, 3100);
   }, []);
 
   return (
@@ -148,6 +156,14 @@ export default function AnimatedSplash({ onFinish }: Props) {
         }]}>
           خدمات الشحن والتسوق الإلكتروني
         </Animated.Text>
+
+        {/* Welcome message */}
+        <Animated.View style={[styles.welcomeBox, {
+          opacity: welcomeOp,
+          transform: [{ scale: welcomeSc }],
+        }]}>
+          <Text style={styles.welcomeText}>نورت البرنامج يادكتور</Text>
+        </Animated.View>
       </View>
 
       {/* Bottom loading dots */}
@@ -219,10 +235,29 @@ const styles = StyleSheet.create({
   tagline: {
     marginTop: 16,
     fontSize: 13.5,
-    color: "rgba(255,255,255,0.75)",
+    color: "rgba(255,255,255,0.65)",
     fontFamily: "Inter_400Regular",
     letterSpacing: 0.4,
     textAlign: "center",
+  },
+  welcomeBox: {
+    marginTop: 26,
+    paddingHorizontal: 30,
+    paddingVertical: 13,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(212,160,23,0.4)",
+  },
+  welcomeText: {
+    fontSize: 21,
+    color: "#fff",
+    fontFamily: "Inter_700Bold",
+    textAlign: "center",
+    letterSpacing: 0.5,
+    textShadowColor: "rgba(212,160,23,0.5)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 14,
   },
   dotsWrap: {
     position: "absolute",
